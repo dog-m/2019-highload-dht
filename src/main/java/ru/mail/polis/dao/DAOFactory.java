@@ -21,6 +21,9 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 
+import org.rocksdb.*;
+import org.rocksdb.util.BytewiseComparator;
+
 /**
  * Custom {@link DAO} factory.
  *
@@ -53,6 +56,16 @@ public final class DAOFactory {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
 
-        throw new IllegalStateException("Not implemented yet");
+        RocksDB.loadLibrary();
+        try {
+            final var comparator = new BytewiseComparator(new ComparatorOptions());
+            final var options = new Options();
+            options.setCreateIfMissing(true);
+            options.setComparator(comparator);
+            final var db = RocksDB.open(options, data.getAbsolutePath());
+            return new RocksDAO(db);
+        } catch (RocksDBException exception) {
+            throw new RockException("Cannot create RockDB instance", exception);
+        }
     }
 }

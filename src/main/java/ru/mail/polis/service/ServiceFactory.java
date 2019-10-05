@@ -17,10 +17,9 @@
 package ru.mail.polis.service;
 
 import java.io.IOException;
-
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.service.dog_m.ServiceImpl;
 
 /**
  * Constructs {@link Service} instances.
@@ -49,10 +48,6 @@ public final class ServiceFactory {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
 
-        if (port <= 0 || 65536 <= port) {
-            throw new IllegalArgumentException("Port out of range");
-        }
-
-        throw new IllegalStateException();
+        return new ServiceImpl(port, dao);
     }
 }

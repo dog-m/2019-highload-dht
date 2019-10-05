@@ -12,5 +12,8 @@
 !.travis.yml
 !settings.gradle
 
+!src/test/*/*.lua
+!gradle/wrapper/*
+
 # ...even if they are in subdirectories
 !*/

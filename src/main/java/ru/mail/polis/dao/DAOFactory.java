@@ -16,13 +16,14 @@
 
 package ru.mail.polis.dao;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.io.File;
 import java.io.IOException;
 
 import org.rocksdb.*;
 import org.rocksdb.util.BytewiseComparator;
+
+import org.jetbrains.annotations.NotNull;
+
 
 /**
  * Custom {@link DAO} factory.
@@ -30,7 +31,7 @@ import org.rocksdb.util.BytewiseComparator;
  * @author Vadim Tsesko
  */
 public final class DAOFactory {
-    static final long MAX_HEAP = 128 * 1024 * 1024;
+    static final long MAX_HEAP = 256 * 1024 * 1024;
 
     private DAOFactory() {
         // Not instantiatable

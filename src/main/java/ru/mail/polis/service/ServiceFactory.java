@@ -19,7 +19,7 @@ package ru.mail.polis.service;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.dog_m.ServiceImpl;
+import ru.mail.polis.service.dogM.ServiceImpl;
 
 /**
  * Constructs {@link Service} instances.

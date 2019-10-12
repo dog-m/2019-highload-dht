@@ -1,4 +1,4 @@
-package ru.mail.polis.service.dog_m;
+package ru.mail.polis.service.dogM;
 
 import one.nio.http.HttpServer;
 import one.nio.http.Request;
@@ -64,7 +64,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 default:
                     return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
             }
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
     }

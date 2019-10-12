@@ -33,9 +33,9 @@ public class ServiceImpl extends HttpServer implements Service {
             throw new IllegalArgumentException("Invalid port");
         }
 
-        AcceptorConfig acceptor = new AcceptorConfig();
+        final var acceptor = new AcceptorConfig();
+        final var config = new HttpServerConfig();
         acceptor.port = port;
-        HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{ acceptor };
         return config;
     }
@@ -64,7 +64,6 @@ public class ServiceImpl extends HttpServer implements Service {
                 default:
                     return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
             }
-            
         } catch (Exception ex) {
             return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }

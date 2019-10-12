@@ -78,7 +78,7 @@ public final class RocksDAO implements DAO {
     private byte[] getArrayCopySync(final ByteBuffer buffer) {
         synchronized (MONITOR) {
             final var copy = buffer.duplicate();
-            byte[] value = new byte[copy.remaining()];
+            final byte[] value = new byte[copy.remaining()];
             copy.get(value);
             return value;
         }

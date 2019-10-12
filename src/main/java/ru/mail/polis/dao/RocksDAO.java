@@ -6,9 +6,10 @@ import ru.mail.polis.Record;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
-public class RocksDAO implements DAO {
+public final class RocksDAO implements DAO {
 
     private final RocksDB db;
+    private static Object MONITOR = new Object();
 
     RocksDAO(RocksDB db) {
         this.db = db;
@@ -18,7 +19,7 @@ public class RocksDAO implements DAO {
     @Override
     public Iterator<Record> iterator(@NotNull ByteBuffer from) {
         final var iterator = db.newIterator();
-        iterator.seek(from.array());
+        iterator.seek(getArrayCopySync(from));
         return new RocksRecordIterator(iterator);
     }
 
@@ -26,7 +27,7 @@ public class RocksDAO implements DAO {
     @Override
     public ByteBuffer get(@NotNull ByteBuffer key) throws RockException {
         try {
-            final var result = db.get(key.array());
+            final var result = db.get(getArrayCopySync(key));
             if (result == null) {
                 throw new NoSuchElementExceptionLite("Cant find element with key " + key.toString());
             }
@@ -39,7 +40,7 @@ public class RocksDAO implements DAO {
     @Override
     public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws RockException {
         try {
-            db.put(key.array(), value.array());
+            db.put(getArrayCopySync(key), getArrayCopySync(value));
         } catch (RocksDBException exception) {
             throw new RockException("Error while upsert", exception);
         }
@@ -48,7 +49,7 @@ public class RocksDAO implements DAO {
     @Override
     public void remove(@NotNull ByteBuffer key) throws RockException {
         try {
-            db.delete(key.array());
+            db.delete(getArrayCopySync(key));
         } catch (RocksDBException exception) {
             throw new RockException("Error while remove", exception);
         }
@@ -70,6 +71,15 @@ public class RocksDAO implements DAO {
             db.closeE();
         } catch (RocksDBException exception) {
             throw new RockException("Error while close", exception);
+        }
+    }
+
+    private byte[] getArrayCopySync(final ByteBuffer buffer) {
+        synchronized (MONITOR) {
+            ByteBuffer copy = buffer.duplicate();
+            byte[] value = new byte[copy.remaining()];
+            copy.get(value);
+            return value;
         }
     }
 }

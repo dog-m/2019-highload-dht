@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
+/**
+ * Simple REST/HTTP service
+ */
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
 

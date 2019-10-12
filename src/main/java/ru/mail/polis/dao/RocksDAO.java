@@ -12,13 +12,13 @@ public final class RocksDAO implements DAO {
     private final RocksDB db;
     private static Object MONITOR = new Object();
 
-    RocksDAO(RocksDB db) {
+    RocksDAO(final RocksDB db) {
         this.db = db;
     }
 
     @NotNull
     @Override
-    public Iterator<Record> iterator(@NotNull ByteBuffer from) {
+    public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
         final var iterator = db.newIterator();
         iterator.seek(getArrayCopySync(from));
         return new RocksRecordIterator(iterator);
@@ -26,7 +26,7 @@ public final class RocksDAO implements DAO {
 
     @NotNull
     @Override
-    public ByteBuffer get(@NotNull ByteBuffer key) throws RockException {
+    public ByteBuffer get(@NotNull final ByteBuffer key) throws RockException {
         try {
             final var result = db.get(getArrayCopySync(key));
             if (result == null) {
@@ -39,7 +39,7 @@ public final class RocksDAO implements DAO {
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws RockException {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws RockException {
         try {
             db.put(getArrayCopySync(key), getArrayCopySync(value));
         } catch (RocksDBException exception) {
@@ -48,7 +48,7 @@ public final class RocksDAO implements DAO {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) throws RockException {
+    public void remove(@NotNull final ByteBuffer key) throws RockException {
         try {
             db.delete(getArrayCopySync(key));
         } catch (RocksDBException exception) {
@@ -77,7 +77,7 @@ public final class RocksDAO implements DAO {
 
     private byte[] getArrayCopySync(final ByteBuffer buffer) {
         synchronized (MONITOR) {
-            ByteBuffer copy = buffer.duplicate();
+            final var copy = buffer.duplicate();
             byte[] value = new byte[copy.remaining()];
             copy.get(value);
             return value;

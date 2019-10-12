@@ -19,7 +19,10 @@ package ru.mail.polis.dao;
 import java.io.File;
 import java.io.IOException;
 
-import org.rocksdb.*;
+import org.rocksdb.RocksDB;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.ComparatorOptions;
 import org.rocksdb.util.BytewiseComparator;
 
 import org.jetbrains.annotations.NotNull;
@@ -66,7 +69,7 @@ public final class DAOFactory {
             final var db = RocksDB.open(options, data.getAbsolutePath());
             return new RocksDAO(db);
         } catch (RocksDBException exception) {
-            throw new RockException("Cannot create RockDB instance", exception);
+            throw new RockException("Cannot create RocksDB instance", exception);
         }
     }
 }

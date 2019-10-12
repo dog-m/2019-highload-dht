@@ -1,19 +1,24 @@
 package ru.mail.polis.service.dog_m;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.HttpSession;
+import one.nio.http.HttpServerConfig;
+import one.nio.server.AcceptorConfig;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 import org.jetbrains.annotations.NotNull;
 import com.google.common.base.Charsets;
-import one.nio.http.HttpServerConfig;
-import one.nio.server.AcceptorConfig;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 /**
- * Simple REST/HTTP service
+ * Simple REST/HTTP service.
  */
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
@@ -35,6 +40,9 @@ public class ServiceImpl extends HttpServer implements Service {
         return config;
     }
 
+    /**
+     * Main handler for requests to addresses like http://localhost:8080/v0/entity?id=key1.
+     */
     @Path("/v0/entity")
     public Response entity(@Param("id") final String id, @NotNull final Request request) {
         try {
@@ -67,6 +75,9 @@ public class ServiceImpl extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
+    /**
+     * Just 'system' status handle.
+     */
     @Path("/v0/status")
     public Response status() {
         return new Response(Response.OK, Response.EMPTY);

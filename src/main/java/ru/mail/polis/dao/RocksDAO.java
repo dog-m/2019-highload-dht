@@ -1,6 +1,7 @@
 package ru.mail.polis.dao;
 
-import org.rocksdb.*;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.Record;
 import java.nio.ByteBuffer;

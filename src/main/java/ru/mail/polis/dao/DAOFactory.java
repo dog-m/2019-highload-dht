@@ -27,7 +27,6 @@ import org.rocksdb.util.BytewiseComparator;
 
 import org.jetbrains.annotations.NotNull;
 
-
 /**
  * Custom {@link DAO} factory.
  *

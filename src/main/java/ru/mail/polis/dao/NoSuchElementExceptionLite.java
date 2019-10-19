@@ -5,6 +5,7 @@ import java.util.NoSuchElementException;
 /**
  * Lightweight exception without stack-trace collection.
  */
+@SuppressWarnings("serial")
 public class NoSuchElementExceptionLite extends NoSuchElementException {
 
     public NoSuchElementExceptionLite(final String s) {
@@ -12,9 +13,7 @@ public class NoSuchElementExceptionLite extends NoSuchElementException {
     }
 
     @Override
-    public Throwable fillInStackTrace() {
-        synchronized (this) {
-            return this;
-        }
+    public synchronized Throwable fillInStackTrace() {
+        return this;
     }
 }

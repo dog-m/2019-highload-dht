@@ -1,4 +1,4 @@
-package ru.mail.polis.service.dogM;
+package ru.mail.polis.service.dogm;
 
 import one.nio.http.HttpServer;
 import one.nio.http.Request;
@@ -84,8 +84,10 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private Response get(final ByteBuffer key) throws IOException {
         try {
-            final var value = dao.get(key).duplicate();
-            return new Response(Response.OK, value.array());
+            final var valueBuffer = dao.get(key).duplicate();
+            final byte[] value = new byte[valueBuffer.remaining()];
+            valueBuffer.get(value);
+            return new Response(Response.OK, value);
         } catch (NoSuchElementException ex) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }

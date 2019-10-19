@@ -10,6 +10,7 @@ import one.nio.http.HttpServerConfig;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.ByteBufferUtils;
 import ru.mail.polis.service.Service;
 import org.jetbrains.annotations.NotNull;
 
@@ -102,9 +103,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response get(final String id) throws IOException {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-            final var valueBuffer = dao.get(key);
-            final byte[] value = new byte[valueBuffer.remaining()];
-            valueBuffer.get(value);
+            final var value = ByteBufferUtils.getByteArray(dao.get(key));
             return new Response(OK, value);
         } catch (NoSuchElementException ex) {
             return new Response(NOT_FOUND, EMPTY);

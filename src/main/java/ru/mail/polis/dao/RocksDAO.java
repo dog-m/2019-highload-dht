@@ -8,9 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 public final class RocksDAO implements DAO {
-
     private final RocksDB db;
-    private static Object MONITOR = new Object();
 
     RocksDAO(final RocksDB db) {
         this.db = db;
@@ -20,7 +18,7 @@ public final class RocksDAO implements DAO {
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
         final var iterator = db.newIterator();
-        iterator.seek(getArrayCopySync(from));
+        iterator.seek(ByteBufferUtils.restoreByteArray(from));
         return new RocksRecordIterator(iterator);
     }
 
@@ -28,7 +26,7 @@ public final class RocksDAO implements DAO {
     @Override
     public ByteBuffer get(@NotNull final ByteBuffer key) throws RockException {
         try {
-            final var result = db.get(getArrayCopySync(key));
+            final var result = db.get(ByteBufferUtils.restoreByteArray(key));
             if (result == null) {
                 throw new NoSuchElementExceptionLite("Cant find element with key " + key.toString());
             }
@@ -41,7 +39,7 @@ public final class RocksDAO implements DAO {
     @Override
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws RockException {
         try {
-            db.put(getArrayCopySync(key), getArrayCopySync(value));
+            db.put(ByteBufferUtils.restoreByteArray(key), ByteBufferUtils.getByteArray(value));
         } catch (RocksDBException exception) {
             throw new RockException("Error while upsert", exception);
         }
@@ -50,7 +48,7 @@ public final class RocksDAO implements DAO {
     @Override
     public void remove(@NotNull final ByteBuffer key) throws RockException {
         try {
-            db.delete(getArrayCopySync(key));
+            db.delete(ByteBufferUtils.restoreByteArray(key));
         } catch (RocksDBException exception) {
             throw new RockException("Error while remove", exception);
         }
@@ -72,15 +70,6 @@ public final class RocksDAO implements DAO {
             db.closeE();
         } catch (RocksDBException exception) {
             throw new RockException("Error while close", exception);
-        }
-    }
-
-    private byte[] getArrayCopySync(final ByteBuffer buffer) {
-        synchronized (MONITOR) {
-            final var copy = buffer.duplicate();
-            final byte[] value = new byte[copy.remaining()];
-            copy.get(value);
-            return value;
         }
     }
 }

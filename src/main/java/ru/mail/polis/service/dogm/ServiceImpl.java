@@ -28,8 +28,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
-    private Executor myWorkers;
-    private Logger log = Logger.getLogger("HttpServer");
+    private final Executor myWorkers;
+    private final Logger log = Logger.getLogger("HttpServer");
     private static final String EXTRA_FAILURE = "Something went wrong";
 
     /**
@@ -74,20 +74,20 @@ public class ServiceImpl extends HttpServer implements Service {
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
                     executeAsync(session, () -> get(id));
-                    return;
+                    break;
 
                 case Request.METHOD_PUT:
                     executeAsync(session, () -> put(id, request.getBody()));
-                    return;
+                    break;
 
                 case Request.METHOD_DELETE:
                     executeAsync(session, () -> delete(id));
-                    return;
+                    break;
 
                 default:
                     session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             session.sendError(Response.INTERNAL_ERROR, e.getMessage());
         }
     }
@@ -141,9 +141,9 @@ public class ServiceImpl extends HttpServer implements Service {
      */
     @Path("/v0/entities")
     public void entities(@Param("start") final String start,
-                         @Param("end") String end,
+                         @Param("end") final String end,
                          @NotNull final Request request,
-                         final HttpSession session) {
+                         final HttpSession session) throws IOException {
         if (start == null || start.isEmpty()) {
             sendError(session, Response.BAD_REQUEST, "No start");
             return;
@@ -154,15 +154,10 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        if (end != null && end.isEmpty()) {
-            end = null;
-        }
-
-        final String finalEnd = end;
         myWorkers.execute(() -> {
             try {
                 final var from = ByteBuffer.wrap(start.getBytes(UTF_8));
-                final var to = finalEnd == null ? null : ByteBuffer.wrap(finalEnd.getBytes(UTF_8));
+                final var to = (end == null || end.isEmpty()) ? null : ByteBuffer.wrap(end.getBytes(UTF_8));
                 final var records = dao.range(from, to);
 
                 final var storageSession = (StorageSession) session;
@@ -188,7 +183,7 @@ public class ServiceImpl extends HttpServer implements Service {
         myWorkers.execute(() -> {
             try {
                 session.sendResponse(action.act());
-            } catch (Exception e) {
+            } catch (IOException e) {
                 try {
                     session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {

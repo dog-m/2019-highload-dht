@@ -23,6 +23,9 @@ public class StorageSession extends HttpSession {
         super(socket, server);
     }
 
+    /**
+     * Method to send large amount of data to client via chunked-transfer-encoding.
+     */
     public void stream(final Iterator<Record> records) throws IOException {
         this.records = records;
 
@@ -41,7 +44,7 @@ public class StorageSession extends HttpSession {
     }
 
     private byte[] getArray(final ByteBuffer buffer) {
-        byte[] bytes = new byte[buffer.remaining()];
+        final byte[] bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
         return bytes;
     }

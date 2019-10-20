@@ -159,8 +159,9 @@ public class ServiceImpl extends HttpServer implements Service {
             try {
                 final var from = ByteBuffer.wrap(start.getBytes(UTF_8));
                 final var to =
-                        end == null || end.isEmpty() ?
-                            null : ByteBuffer.wrap(end.getBytes(UTF_8));
+                        end == null || end.isEmpty()
+                            ? null
+                            : ByteBuffer.wrap(end.getBytes(UTF_8));
                 final var records = dao.range(from, to);
 
                 final var storageSession = (StorageSession) session;

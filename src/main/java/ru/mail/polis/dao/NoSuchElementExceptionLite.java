@@ -5,8 +5,9 @@ import java.util.NoSuchElementException;
 /**
  * Lightweight exception without stack-trace collection.
  */
-@SuppressWarnings("serial")
 public class NoSuchElementExceptionLite extends NoSuchElementException {
+
+    private static final long serialVersionUID = 1000L;
 
     public NoSuchElementExceptionLite(final String s) {
         super(s);

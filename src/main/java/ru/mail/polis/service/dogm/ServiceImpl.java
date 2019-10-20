@@ -86,6 +86,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
                 default:
                     session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
+                    break;
             }
         } catch (IOException e) {
             session.sendError(Response.INTERNAL_ERROR, e.getMessage());
@@ -157,7 +158,9 @@ public class ServiceImpl extends HttpServer implements Service {
         myWorkers.execute(() -> {
             try {
                 final var from = ByteBuffer.wrap(start.getBytes(UTF_8));
-                final var to = (end == null || end.isEmpty()) ? null : ByteBuffer.wrap(end.getBytes(UTF_8));
+                final var to =
+                        end == null || end.isEmpty() ?
+                            null : ByteBuffer.wrap(end.getBytes(UTF_8));
                 final var records = dao.range(from, to);
 
                 final var storageSession = (StorageSession) session;

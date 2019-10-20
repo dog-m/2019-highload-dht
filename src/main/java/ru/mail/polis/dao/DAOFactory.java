@@ -22,7 +22,6 @@ import java.io.IOException;
 import org.rocksdb.RocksDB;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDBException;
-import org.rocksdb.ComparatorOptions;
 import org.rocksdb.BuiltinComparator;
 
 import org.jetbrains.annotations.NotNull;

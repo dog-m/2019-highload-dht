@@ -21,26 +21,31 @@ import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static one.nio.http.Response.*;
 
 /**
  * Simple REST/HTTP service.
  */
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
-    private Executor my_workers;
+    private Executor myWorkers;
     private Logger log = Logger.getLogger("HttpServer");
+    private static final String EXTRA_FAILURE = "Something went wrong";
 
+    /**
+     * Constructor of simple REST/HTTP service.
+     */
     public ServiceImpl(final int port,
                        @NotNull final DAO dao,
                        final Executor workers) throws IOException {
         super(getConfig(port));
         this.dao = dao;
-        this.my_workers = workers;
+        this.myWorkers = workers;
     }
 
+    /**
+     * Default configuration for simple REST/HTTP service.
+     */
     private static HttpServerConfig getConfig(final int port) {
         if (port <= 1024 || port >= 66535) {
             throw new IllegalArgumentException("Invalid port");
@@ -61,7 +66,7 @@ public class ServiceImpl extends HttpServer implements Service {
                        @NotNull final Request request,
                        @NotNull final HttpSession session) throws IOException {
         if (id == null || id.isEmpty()) {
-            session.sendError(BAD_REQUEST, "No id");
+            session.sendError(Response.BAD_REQUEST, "No id");
             return;
         }
 
@@ -80,16 +85,16 @@ public class ServiceImpl extends HttpServer implements Service {
                     return;
 
                 default:
-                    session.sendError(METHOD_NOT_ALLOWED, "Wrong method");
+                    session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
             }
         } catch (Exception e) {
-            session.sendError(INTERNAL_ERROR, e.getMessage());
+            session.sendError(Response.INTERNAL_ERROR, e.getMessage());
         }
     }
 
     @Override
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
-        session.sendResponse(new Response(BAD_REQUEST, EMPTY));
+        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
     /**
@@ -97,16 +102,16 @@ public class ServiceImpl extends HttpServer implements Service {
      */
     @Path("/v0/status")
     public Response status() {
-        return new Response(OK, EMPTY);
+        return new Response(Response.OK, Response.EMPTY);
     }
 
     private Response get(final String id) throws IOException {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
             final var value = ByteBufferUtils.getByteArray(dao.get(key));
-            return new Response(OK, value);
+            return new Response(Response.OK, value);
         } catch (NoSuchElementException ex) {
-            return new Response(NOT_FOUND, EMPTY);
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
@@ -114,35 +119,38 @@ public class ServiceImpl extends HttpServer implements Service {
         final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
         final var val = ByteBuffer.wrap(value);
         dao.upsert(key, val);
-        return new Response(CREATED, EMPTY);
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private Response delete(final String id) throws IOException {
         final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
         dao.remove(key);
-        return new Response(ACCEPTED, EMPTY);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     void sendError(final HttpSession session, final String code, final String data) {
         try {
             session.sendError(code, data);
         } catch (IOException e) {
-            log.log(Level.SEVERE, "Something went wrong", e);
+            log.log(Level.SEVERE, EXTRA_FAILURE, e);
         }
     }
 
+    /**
+     * Main handler for requests to addresses like http://localhost:8080/v0/entities?start=key1[&end=key99].
+     */
     @Path("/v0/entities")
     public void entities(@Param("start") final String start,
                          @Param("end") String end,
                          @NotNull final Request request,
                          final HttpSession session) {
         if (start == null || start.isEmpty()) {
-            sendError(session, BAD_REQUEST, "No start");
+            sendError(session, Response.BAD_REQUEST, "No start");
             return;
         }
 
         if (request.getMethod() != Request.METHOD_GET) {
-            sendError(session, METHOD_NOT_ALLOWED, "Wrong method");
+            sendError(session, Response.METHOD_NOT_ALLOWED, "Wrong method");
             return;
         }
 
@@ -151,7 +159,7 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         final String finalEnd = end;
-        my_workers.execute(() -> {
+        myWorkers.execute(() -> {
             try {
                 final var from = ByteBuffer.wrap(start.getBytes(UTF_8));
                 final var to = finalEnd == null ? null : ByteBuffer.wrap(finalEnd.getBytes(UTF_8));
@@ -161,9 +169,9 @@ public class ServiceImpl extends HttpServer implements Service {
                 storageSession.stream(records);
             } catch (IOException e) {
                 try {
-                    session.sendError(INTERNAL_ERROR, e.getMessage());
+                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
-                    log.log(Level.SEVERE, "Something went wrong", ex);
+                    log.log(Level.SEVERE, EXTRA_FAILURE, ex);
                 }
             }
         });
@@ -177,14 +185,14 @@ public class ServiceImpl extends HttpServer implements Service {
     private void executeAsync(
             @NotNull final HttpSession session,
             @NotNull final Action action) {
-        my_workers.execute(() -> {
+        myWorkers.execute(() -> {
             try {
                 session.sendResponse(action.act());
             } catch (Exception e) {
                 try {
-                    session.sendError(INTERNAL_ERROR, e.getMessage());
+                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
-                    log.log(Level.SEVERE, "Something went wrong", ex);
+                    log.log(Level.SEVERE, EXTRA_FAILURE, ex);
                 }
             }
         });

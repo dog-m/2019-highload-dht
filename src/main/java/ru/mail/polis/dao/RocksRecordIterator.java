@@ -23,7 +23,7 @@ public class RocksRecordIterator implements Iterator<Record>, AutoCloseable {
     @Override
     public Record next() throws IllegalStateException {
         if (!hasNext()) {
-            throw new IllegalStateException("Iterator is exhausted");
+            throw new NoSuchElementExceptionLite("Iterator is exhausted");
         }
         final ByteBuffer key = ByteBufferUtils.shiftByteArray(iterator.key());
         final ByteBuffer value = ByteBuffer.wrap(iterator.value());

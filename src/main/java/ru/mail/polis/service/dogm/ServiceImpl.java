@@ -1,6 +1,5 @@
 package ru.mail.polis.service.dogm;
 
-import one.nio.http.*;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;

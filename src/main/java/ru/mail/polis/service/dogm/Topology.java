@@ -3,10 +3,9 @@ package ru.mail.polis.service.dogm;
 import java.util.List;
 
 public interface Topology {
+    String primaryFor(final String id);
 
-    public String primaryFor(final String id);
+    List<String> all();
 
-    public List<String> all();
-
-    public Boolean isMe(final String node);
+    Boolean isMe(final String node);
 }

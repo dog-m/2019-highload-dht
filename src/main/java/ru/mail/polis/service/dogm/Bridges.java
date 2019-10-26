@@ -11,13 +11,21 @@ import one.nio.net.ConnectionString;
 import one.nio.http.HttpClient;
 import one.nio.pool.PoolException;
 
+/**
+ * Bridging class for redirecting requests to other nodes in cluster.
+ */
 public class Bridges {
     private final Map<String, HttpClient> clients = new HashMap<>();
 
+    /**
+     * Constructor for redirector dictionary (Bridges).
+     */
     public Bridges(final Topology topology) {
-        for (final String point : topology.all())
-            if(!topology.isMe(point))
+        for (final String point : topology.all()) {
+            if (!topology.isMe(point)) {
                 clients.put(point, new HttpClient(new ConnectionString(point + "/?timeout=100")));
+            }
+        }
     }
 
     public Response sendRequestTo(final Request request, final String node)

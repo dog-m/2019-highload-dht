@@ -61,6 +61,6 @@ public final class ServiceFactory {
                     Runtime.getRuntime().availableProcessors(),
                     new ThreadFactoryBuilder().setNameFormat("worker").build());
 
-        return new ServiceImpl(port, dao, executor);
+        return new ServiceImpl(port, dao, executor, topology);
     }
 }

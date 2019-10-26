@@ -1,13 +1,8 @@
 package ru.mail.polis.service.dogm;
 
-import one.nio.http.HttpServer;
-import one.nio.http.Request;
-import one.nio.http.Response;
-import one.nio.http.Param;
-import one.nio.http.Path;
-import one.nio.http.HttpSession;
-import one.nio.http.HttpServerConfig;
+import one.nio.http.*;
 import one.nio.net.Socket;
+import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.ByteBufferUtils;
@@ -17,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,17 +26,23 @@ public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger("HttpServer");
-    private static final String EXTRA_FAILURE = "Something went wrong";
+    private static final String FAIL_EXTRA = "Something went wrong";
+    private static final String FAIL_PROXY = "Proxy failure";
+    private final Topology topology;
+    private final Bridges bridges;
 
     /**
      * Constructor of simple REST/HTTP service.
      */
     public ServiceImpl(final int port,
                        @NotNull final DAO dao,
-                       final Executor workers) throws IOException {
+                       final Executor workers,
+                       @NotNull final Set<String> topology) throws IOException {
         super(getConfig(port));
         this.dao = dao;
         this.myWorkers = workers;
+        this.topology = new BasicTopology(topology, port);
+        this.bridges = new Bridges(this.topology);
     }
 
     /**
@@ -70,7 +72,14 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
+        final String primary = topology.primaryFor(id);
+
         try {
+            if (!topology.isMe(primary)) {
+                executeAsync(session, () -> proxy(primary, request));
+                return;
+            }
+        
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
                     executeAsync(session, () -> get(id));
@@ -106,6 +115,15 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, Response.EMPTY);
     }
 
+    private Response proxy(final String node, final Request request) throws IOException {
+        try {
+            return bridges.sendRequestTo(request, node);
+        } catch (InterruptedException | PoolException | HttpException e) {
+            log.log(Level.SEVERE, FAIL_PROXY, e);
+            return new Response(Response.INTERNAL_ERROR, FAIL_PROXY.getBytes(UTF_8));
+        }
+    }
+
     private Response get(final String id) throws IOException {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
@@ -133,7 +151,7 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             session.sendError(code, data);
         } catch (IOException e) {
-            log.log(Level.SEVERE, EXTRA_FAILURE, e);
+            log.log(Level.SEVERE, FAIL_EXTRA, e);
         }
     }
 
@@ -170,7 +188,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 try {
                     session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
-                    log.log(Level.SEVERE, EXTRA_FAILURE, ex);
+                    log.log(Level.SEVERE, FAIL_EXTRA, ex);
                 }
             }
         });
@@ -191,7 +209,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 try {
                     session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
-                    log.log(Level.SEVERE, EXTRA_FAILURE, ex);
+                    log.log(Level.SEVERE, FAIL_EXTRA, ex);
                 }
             }
         });

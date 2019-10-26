@@ -1,5 +1,14 @@
 package ru.mail.polis.service.dogm;
 
+import one.nio.http.HttpException;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
+
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
@@ -146,7 +155,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    void sendError(final HttpSession session, final String code, final String data) {
+    private void sendError(final HttpSession session, final String code, final String data) {
         try {
             session.sendError(code, data);
         } catch (IOException e) {

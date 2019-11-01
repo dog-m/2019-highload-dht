@@ -34,7 +34,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger("HttpServer");
-    private static final String FAIL_EXTRA = "Something went wrong";
+    private static final String FAIL_ERROR_SEND = "Cannot send an error message";
     private static final String FAIL_PROXY = "Proxy failure";
     private final Topology topology;
     private final Bridges bridges;
@@ -159,7 +159,7 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             session.sendError(code, data);
         } catch (IOException e) {
-            log.log(Level.SEVERE, FAIL_EXTRA, e);
+            log.log(Level.SEVERE, FAIL_ERROR_SEND, e);
         }
     }
 
@@ -193,11 +193,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 final var storageSession = (StorageSession) session;
                 storageSession.stream(records);
             } catch (IOException e) {
-                try {
-                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
-                } catch (IOException ex) {
-                    log.log(Level.SEVERE, FAIL_EXTRA, ex);
-                }
+                sendError(session, Response.INTERNAL_ERROR, e.getMessage());
             }
         });
     }
@@ -214,11 +210,7 @@ public class ServiceImpl extends HttpServer implements Service {
             try {
                 session.sendResponse(action.act());
             } catch (IOException e) {
-                try {
-                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
-                } catch (IOException ex) {
-                    log.log(Level.SEVERE, FAIL_EXTRA, ex);
-                }
+                sendError(session, Response.INTERNAL_ERROR, e.getMessage());
             }
         });
     }

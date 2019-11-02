@@ -1,4 +1,4 @@
-package ru.mail.polis.dao;
+package ru.mail.polis.dao.dogm;
 
 import org.jetbrains.annotations.NotNull;
 import org.rocksdb.RocksIterator;

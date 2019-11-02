@@ -1,4 +1,4 @@
-package ru.mail.polis.dao;
+package ru.mail.polis.dao.dogm;
 
 import java.io.IOException;
 

@@ -13,7 +13,7 @@ import one.nio.net.Socket;
 import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.ByteBufferUtils;
+import ru.mail.polis.dao.dogm.ByteBufferUtils;
 import ru.mail.polis.service.Service;
 import org.jetbrains.annotations.NotNull;
 

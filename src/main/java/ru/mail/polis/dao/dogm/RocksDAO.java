@@ -1,17 +1,34 @@
-package ru.mail.polis.dao;
+package ru.mail.polis.dao.dogm;
 
+import org.rocksdb.Options;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.BuiltinComparator;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+
 import org.jetbrains.annotations.NotNull;
+
 import ru.mail.polis.Record;
+import ru.mail.polis.dao.DAO;
+
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.io.File;
+import java.io.IOException;
 
 public final class RocksDAO implements DAO {
     private final RocksDB db;
 
-    RocksDAO(final RocksDB db) {
-        this.db = db;
+    public RocksDAO(@NotNull final File data) throws IOException {
+        RocksDB.loadLibrary();
+        try {
+            final var options = new Options()
+                    .setCreateIfMissing(true)
+                    .setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
+            this.db = RocksDB.open(options, data.getAbsolutePath());
+        } catch (RocksDBException exception) {
+            throw new RockException("Cannot create RocksDB instance", exception);
+        }
     }
 
     @NotNull

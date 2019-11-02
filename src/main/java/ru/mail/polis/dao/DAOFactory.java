@@ -19,12 +19,9 @@ package ru.mail.polis.dao;
 import java.io.File;
 import java.io.IOException;
 
-import org.rocksdb.RocksDB;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.BuiltinComparator;
-
 import org.jetbrains.annotations.NotNull;
+
+import ru.mail.polis.dao.dogm.RocksDAO;
 
 /**
  * Custom {@link DAO} factory.
@@ -58,15 +55,6 @@ public final class DAOFactory {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
 
-        RocksDB.loadLibrary();
-        try {
-            final var options = new Options();
-            options.setCreateIfMissing(true);
-            options.setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
-            final var db = RocksDB.open(options, data.getAbsolutePath());
-            return new RocksDAO(db);
-        } catch (RocksDBException exception) {
-            throw new RockException("Cannot create RocksDB instance", exception);
-        }
+        return new RocksDAO(data);
     }
 }

@@ -1,24 +1,4 @@
-## stage-4_wrk_get
-wrk -t2 -c10 -d60s -R1000 -s ~/2019-highload-dht/src/test/wrk/get.lua --latency http://localhost:8080 > ~/stage-4_wrk_get.log
+Анализ результатов профилирования:
 
-## stage-4_wrk_put
-wrk -t2 -c10 -d60s -R1000 -s ~/2019-highload-dht/src/test/wrk/put.lua --latency http://localhost:8080 > ~/stage-4_wrk_put.log
-
-
-
-## async-profiler
-sudo su &
-echo 0 > /proc/sys/kernel/kptr_restrict &
-echo 1 > /proc/sys/kernel/perf_event_paranoid &
-exit
-
-
-## stage-4_async-profiler_get
-jps (СЃРј. РЅРѕРјРµСЂ Сѓ Cluster)
-./profiler.sh -d 90 -f ~/stage-4_async-profiler_get.svg 0000 &
-wrk -t2 -c10 -d90s -R1000 -s ~/2019-highload-dht/src/test/wrk/get.lua http://localhost:8080
-
-## stage-4_async-profiler_put
-jps (СЃРј. РЅРѕРјРµСЂ Сѓ Cluster)
-./profiler.sh -d 90 -f ~/stage-4_async-profiler_put.svg 0000 &
-wrk -t2 -c10 -d90s -R1000 -s ~/2019-highload-dht/src/test/wrk/put.lua http://localhost:8080
+* Небольшое увеличение времени обработки запросов put/get (+2 мс.) для перцентилей >= 90%
+* _Профили cpu не сравниваемы, в силу каких-то ошибок в постановке замеров_

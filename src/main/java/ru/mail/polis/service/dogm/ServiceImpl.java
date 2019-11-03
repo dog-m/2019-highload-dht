@@ -1,6 +1,5 @@
 package ru.mail.polis.service.dogm;
 
-import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -8,14 +7,12 @@ import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
-
 import one.nio.net.Socket;
-import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
+import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.dogm.ByteBufferUtils;
 import ru.mail.polis.service.Service;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -32,12 +29,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
+    private final int size;
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger("HttpServer");
     private static final String FAIL_ERROR_SEND = "Cannot send an error message";
-    private static final String FAIL_PROXY = "Proxy failure";
     private final Topology topology;
     private final Bridges bridges;
+    private final ReplicasFraction fraction;
 
     /**
      * Constructor of simple REST/HTTP service.
@@ -51,6 +49,8 @@ public class ServiceImpl extends HttpServer implements Service {
         this.myWorkers = workers;
         this.topology = new BasicTopology(topology, port);
         this.bridges = new Bridges(this.topology);
+        this.size = topology.size();
+        this.fraction = new ReplicasFraction(this.size / 2 + 1, this.size);
     }
 
     /**
@@ -80,30 +80,42 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final String primary = topology.primaryFor(id);
+        boolean proxied = false;
+        if (request.getHeader(Coordinator.PROXY_HEADER) != null) {
+            proxied = true;
+        }
 
         try {
-            if (!topology.isMe(primary)) {
-                executeAsync(session, () -> proxy(primary, request));
-                return;
+            final var replicas = request.getParameter("replicas");
+            final var newFraction = ReplicasFraction.tryParse(replicas, session, this.fraction, size);
+            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+
+            if (proxied || topology.all().size() > 1) {
+                final var coordinator = new Coordinator(topology, bridges, dao, proxied);
+                final var replica = proxied
+                              ? new String[]{ topology.getMe() }
+                              : topology.replicas(key, newFraction.from);
+
+                coordinator.request(replica, request, newFraction.ack, session);
             }
-        
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    executeAsync(session, () -> get(id));
-                    break;
+            else {
+              switch (request.getMethod()) {
+                  case Request.METHOD_GET:
+                      executeAsync(session, () -> get(id));
+                      break;
 
-                case Request.METHOD_PUT:
-                    executeAsync(session, () -> put(id, request.getBody()));
-                    break;
+                  case Request.METHOD_PUT:
+                      executeAsync(session, () -> put(id, request.getBody()));
+                      break;
 
-                case Request.METHOD_DELETE:
-                    executeAsync(session, () -> delete(id));
-                    break;
+                  case Request.METHOD_DELETE:
+                      executeAsync(session, () -> delete(id));
+                      break;
 
-                default:
-                    session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
-                    break;
+                  default:
+                      session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
+                      break;
+              }
             }
         } catch (IOException e) {
             session.sendError(Response.INTERNAL_ERROR, e.getMessage());
@@ -121,15 +133,6 @@ public class ServiceImpl extends HttpServer implements Service {
     @Path("/v0/status")
     public Response status() {
         return new Response(Response.OK, Response.EMPTY);
-    }
-
-    private Response proxy(final String node, final Request request) throws IOException {
-        try {
-            return bridges.sendRequestTo(request, node);
-        } catch (InterruptedException | PoolException | HttpException e) {
-            log.log(Level.SEVERE, FAIL_PROXY, e);
-            return new Response(Response.INTERNAL_ERROR, FAIL_PROXY.getBytes(UTF_8));
-        }
     }
 
     private Response get(final String id) throws IOException {
@@ -170,7 +173,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public void entities(@Param("start") final String start,
                          @Param("end") final String end,
                          @NotNull final Request request,
-                         final HttpSession session) throws IOException {
+                         final HttpSession session) {
         if (start == null || start.isEmpty()) {
             sendError(session, Response.BAD_REQUEST, "No start");
             return;

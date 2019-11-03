@@ -1,5 +1,6 @@
 package ru.mail.polis.service.dogm;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 public interface Topology {
@@ -7,5 +8,9 @@ public interface Topology {
 
     List<String> all();
 
-    Boolean isMe(final String node);
+    boolean isMe(final String node);
+
+    String[] replicas(final ByteBuffer id, final int count);
+
+    String getMe();
 }

@@ -1,5 +1,6 @@
 package ru.mail.polis.service.dogm;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,10 +32,21 @@ public class BasicTopology implements Topology {
         this.me = meNode;
     }
 
+    protected int identifierToIndex(final String id) {
+        return hashToIndex(id.hashCode());
+    }
+
+    protected int identifierToIndex(final ByteBuffer id) {
+        return hashToIndex(id.hashCode());
+    }
+
+    protected int hashToIndex(final int hash) {
+        return (hash & Integer.MAX_VALUE) % nodes.size();
+    }
+
     @Override
     public String primaryFor(final String id) {
-        final int hash = id.hashCode();
-        final int node = (hash & Integer.MAX_VALUE) % nodes.size();
+        final int node = identifierToIndex(id);
         return nodes.get(node);
     }
 
@@ -44,7 +56,22 @@ public class BasicTopology implements Topology {
     }
 
     @Override
-    public Boolean isMe(final String node) {
+    public boolean isMe(final String node) {
         return me.equals(node);
+    }
+
+    @Override
+    public String getMe() {
+        return me;
+    }
+
+    @Override
+    public String[] replicas(final ByteBuffer id, final int count) {
+        final var result = new String[count];
+        for (int j = 0, i = identifierToIndex(id); j < count; j++) {
+            result[j] = nodes.get(i);
+            i = (i + 1) % nodes.size();
+        }
+        return result;
     }
 }

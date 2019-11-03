@@ -21,6 +21,9 @@ import java.io.IOException;
 public final class RocksDAO implements DAO {
     private final RocksDB db;
 
+    /**
+     * Constructor of custom RocksDB DAO implementation.
+     */
     public RocksDAO(@NotNull final File data) throws IOException {
         RocksDB.loadLibrary();
         try {

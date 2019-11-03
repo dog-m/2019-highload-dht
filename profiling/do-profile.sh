@@ -1,3 +1,4 @@
+#!/bin/bash
 # * wrk should be in /usr/local/bin (see [https://github.com/giltene/wrk2/wiki/Installing-wrk2-on-Linux])
 # 1. 'sudo ./pre-profile.sh'
 # 2. './gradlew run' in separate console
@@ -6,20 +7,20 @@
 
 ### User-defined values ###
 
-STAGE=4
-TARGET='Cluster' # Cluster on 4, Server on 1..3
-OUTPUT_DIR='~'
+STAGE=5
+TARGET='Cluster'  # Cluster on 4, Server on 1..3
+OUTPUT_DIR="$HOME"
 URL='http://localhost:8080'
 WRK_THREADS=2
 WRK_CONNECTIONS=10
 WRK_REQUESTS_PER_SECOND=1000
-WRK_SCRIPTS_DIR='~/2019-highload-dht/src/test/wrk'
+WRK_SCRIPTS_DIR="$HOME/2019-highload-dht/src/test/wrk"
 PROFILING_TYPES=(cpu alloc lock)
-HTTP_METHODS=(get put) # script names(!)
+HTTP_METHODS=(get put)  # script names(!)
 # in seconds(!)
 PROFILE_TIME_WRK=60
 PROFILE_TIME_ASYNC_PROFILER=90
-RELAX_TIME=2.5 # hardware isn't just pile of cheap junk
+RELAX_TIME=2  # hardware isn't just pile of cheap junk
 
 ### (not quite) user-defined values ###
 

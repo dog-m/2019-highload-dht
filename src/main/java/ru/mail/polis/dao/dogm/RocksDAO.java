@@ -4,7 +4,6 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.BuiltinComparator;
 import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -16,6 +15,9 @@ import java.util.Iterator;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Custom DAO implementation via RocksDB.
+ */
 public final class RocksDAO implements DAO {
     private final RocksDB db;
 
@@ -53,6 +55,9 @@ public final class RocksDAO implements DAO {
         }
     }
 
+    /**
+     * Hacky way to retrieve data with timestamp on it from plain old RocksDB.
+     */
     @NotNull
     public DataWithTimestamp getWithTimestamp(@NotNull final ByteBuffer key) throws RockException {
         try {
@@ -71,6 +76,9 @@ public final class RocksDAO implements DAO {
         }
     }
 
+    /**
+     * Hacky way to store data with timestamp on it in plain old RocksDB.
+     */
     public void upsertWithTimestamp(@NotNull final ByteBuffer key,
                                     @NotNull final ByteBuffer value) throws RockException {
         try {
@@ -90,6 +98,9 @@ public final class RocksDAO implements DAO {
         }
     }
 
+    /**
+     * Hacky way to mark data with timestamp deleted in plain old RocksDB.
+     */
     public void removeWithTimestamp(@NotNull final ByteBuffer key) throws IOException {
         try {
             db.put(ByteBufferUtils.restoreByteArray(key),

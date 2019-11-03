@@ -68,9 +68,8 @@ public class BasicTopology implements Topology {
     @Override
     public String[] replicas(final ByteBuffer id, final int count) {
         final var result = new String[count];
-        for (int j = 0, i = identifierToIndex(id); j < count; j++) {
-            result[j] = nodes.get(i);
-            i = (i + 1) % nodes.size();
+        for (int j = 0, i = identifierToIndex(id); j < count; j++, i++) {
+            result[j] = nodes.get(i % nodes.size());
         }
         return result;
     }

@@ -83,7 +83,8 @@ class Coordinator {
                     asks++;
                 } else {
                     request.addHeader(PROXY_HEADER);
-                    final Response response = bridges.getBridgeTo(node).put(ENTITY_URL + id, request.getBody(), PROXY_HEADER);
+                    final Response response = bridges.getBridgeTo(node)
+                              .put(ENTITY_URL + id, request.getBody(), PROXY_HEADER);
                     if (response.getStatus() == 201) {
                         asks++;
                     }

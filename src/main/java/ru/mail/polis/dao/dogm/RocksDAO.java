@@ -4,7 +4,6 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.BuiltinComparator;
 import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -16,9 +15,15 @@ import java.util.Iterator;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Custom DAO implementation via RocksDB.
+ */
 public final class RocksDAO implements DAO {
     private final RocksDB db;
 
+    /**
+     * Constructor of custom RocksDB DAO implementation.
+     */
     public RocksDAO(@NotNull final File data) throws IOException {
         RocksDB.loadLibrary();
         try {
@@ -26,8 +31,8 @@ public final class RocksDAO implements DAO {
                     .setCreateIfMissing(true)
                     .setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
             this.db = RocksDB.open(options, data.getAbsolutePath());
-        } catch (RocksDBException exception) {
-            throw new RockException("Cannot create RocksDB instance", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Cannot create RocksDB instance", e);
         }
     }
 
@@ -48,8 +53,20 @@ public final class RocksDAO implements DAO {
                 throw new NoSuchElementExceptionLite("Cant find element with key " + key.toString());
             }
             return ByteBuffer.wrap(result);
-        } catch (RocksDBException exception) {
-            throw new RockException("Error while get", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Error while get", e);
+        }
+    }
+
+    /**
+     * Hacky way to retrieve data with timestamp on it from plain old RocksDB.
+     */
+    @NotNull
+    public DataWithTimestamp getWithTimestamp(@NotNull final ByteBuffer key) throws RockException {
+        try {
+            return DataWithTimestamp.fromBytes(db.get(ByteBufferUtils.restoreByteArray(key)));
+        } catch (RocksDBException e) {
+            throw new RockException("Error while getWithTimestamp", e);
         }
     }
 
@@ -57,8 +74,21 @@ public final class RocksDAO implements DAO {
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws RockException {
         try {
             db.put(ByteBufferUtils.restoreByteArray(key), ByteBufferUtils.getByteArray(value));
-        } catch (RocksDBException exception) {
-            throw new RockException("Error while upsert", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Error while upsert", e);
+        }
+    }
+
+    /**
+     * Hacky way to store data with timestamp on it in plain old RocksDB.
+     */
+    public void upsertWithTimestamp(@NotNull final ByteBuffer key,
+                                    @NotNull final ByteBuffer value) throws RockException {
+        try {
+            db.put(ByteBufferUtils.restoreByteArray(key),
+                   DataWithTimestamp.fromPresent(value, System.currentTimeMillis()).toBytes());
+        } catch (RocksDBException e) {
+            throw new RockException("Error while upsertWithTimestamp", e);
         }
     }
 
@@ -66,8 +96,20 @@ public final class RocksDAO implements DAO {
     public void remove(@NotNull final ByteBuffer key) throws RockException {
         try {
             db.delete(ByteBufferUtils.restoreByteArray(key));
-        } catch (RocksDBException exception) {
-            throw new RockException("Error while remove", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Error while remove", e);
+        }
+    }
+
+    /**
+     * Hacky way to mark data with timestamp deleted in plain old RocksDB.
+     */
+    public void removeWithTimestamp(@NotNull final ByteBuffer key) throws IOException {
+        try {
+            db.put(ByteBufferUtils.restoreByteArray(key),
+                   DataWithTimestamp.fromRemovedAt(System.currentTimeMillis()).toBytes());
+        } catch (RocksDBException e) {
+            throw new RockException("Error while removeWithTimestamp", e);
         }
     }
 
@@ -75,8 +117,8 @@ public final class RocksDAO implements DAO {
     public void compact() throws RockException {
         try {
             db.compactRange();
-        } catch (RocksDBException exception) {
-            throw new RockException("Error while compact", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Error while compact", e);
         }
     }
 
@@ -85,8 +127,8 @@ public final class RocksDAO implements DAO {
         try {
             db.syncWal();
             db.closeE();
-        } catch (RocksDBException exception) {
-            throw new RockException("Error while close", exception);
+        } catch (RocksDBException e) {
+            throw new RockException("Error while close", e);
         }
     }
 }

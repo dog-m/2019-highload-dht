@@ -17,7 +17,8 @@
 !src/test/*/*.lua
 !gradle/wrapper/*
 
-!profiling_results/*.*
+!profiling/*.*
+!profiling/*/*.*
 
 # ...even if they are in subdirectories
 !*/

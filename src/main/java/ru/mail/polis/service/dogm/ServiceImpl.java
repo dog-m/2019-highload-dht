@@ -72,134 +72,6 @@ public class ServiceImpl extends HttpServer implements Service {
         return config;
     }
 
-    /**
-     * Main handler for requests to addresses like http://localhost:8080/v0/entity?id=key1[&replicas=ack/from].
-     */
-    @Path("/v0/entity")
-    public void entity(@Param("id") final String id,
-                       @Param("replicas") final String replicas,
-                       @NotNull final Request request,
-                       @NotNull final HttpSession session) throws IOException {
-        if (id == null || id.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, Protocol.FAIL_MISSING_ID);
-            return;
-        }
-
-        final var fraction = request.getHeader(Protocol.HEADER_PROXIED) == null
-                    ? ReplicasFraction.parse(replicas, clusterSize)
-                    : ReplicasFraction.one();
-        if (fraction.ack < 1 || fraction.ack > fraction.from || fraction.from > clusterSize) {
-            session.sendError(Response.BAD_REQUEST, Protocol.FAIL_REPLICAS);
-            return;
-        }
-
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-            case Request.METHOD_PUT:
-            case Request.METHOD_DELETE:
-                executeAsync(session, () -> processEntityRequest(id, fraction, request));
-                break;
-
-            default:
-                session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
-                break;
-        }
-    }
-
-    private Response processEntityRequest(@NotNull final String id,
-                                          @NotNull final ReplicasFraction fraction,
-                                          @NotNull final Request request) {
-        request.addHeader(Protocol.HEADER_PROXIED);
-        final var nodes = topology.nodesFor(id, fraction.from);
-        final var responses = new ArrayList<Response>(nodes.size());
-        for (final var node : nodes) {
-            try {
-                Response response = null;
-                DataWithTimestamp data = null;
-
-                if (topology.isMe(node)) {
-                    switch (request.getMethod()) {
-                        case Request.METHOD_GET:
-                            response = get(id);
-                            if (responseToDataWithTimestamp(response).isRemoved())
-                                return new Response(Response.NOT_FOUND, Response.EMPTY);
-                            break;
-
-                        case Request.METHOD_PUT:
-                            response = put(id, request.getBody());
-                            if (response.getStatus() != 201) {
-                                continue;
-                            }
-                            break;
-
-                        case Request.METHOD_DELETE:
-                            response = delete(id);
-                            if (response.getStatus() != 202) {
-                                continue;
-                            }
-                            break;
-                    }
-                } else {
-                    response = proxy(node, request);
-                }
-
-                responses.add(response);
-            } catch (IOException e) {
-                log.severe(e.getMessage());
-            }
-        }
-
-        if (responses.size() < fraction.ack) {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        } else {
-            if (request.getMethod() == Request.METHOD_GET) {
-                return getSuitableResponse(responses);
-            } else {
-                return responses.get(0);
-            }
-        }
-    }
-
-    private Response getSuitableResponse(@NotNull final List<Response> responses) {
-        long maxTimestamp = -1;
-        Response max = new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        for (final var candidate : responses) {
-            final var candidateTimestamp = responseToDataWithTimestamp(candidate).timestamp;
-            if (maxTimestamp < candidateTimestamp) {
-                maxTimestamp = candidateTimestamp;
-                max = candidate;
-            }
-        }
-        return max;
-    }
-
-    private long tryParseLong(final String x) {
-        if (x == null) {
-            return -1;
-        }
-
-        try {
-            return Long.parseLong(x);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
-    private DataWithTimestamp responseToDataWithTimestamp(final Response res) {
-        if (res == null)
-            return DataWithTimestamp.fromAbsent();
-
-        final var state = (byte)tryParseLong(res.getHeader(Protocol.HEADER_STATE));
-        final var timestamp = tryParseLong(res.getHeader(Protocol.HEADER_TIMESTAMP));
-        final var data = res.getBody();
-
-        if (timestamp < 0) {
-            return DataWithTimestamp.fromAbsent();
-        } else {
-            return new DataWithTimestamp(timestamp, ByteBuffer.wrap(data), DataWithTimestamp.State.fromValue(state));
-        }
-    }
-
     @Override
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
@@ -213,6 +85,155 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, Response.EMPTY);
     }
 
+    /**
+     * Main handler for requests to addresses like http://localhost:8080/v0/entity?id=key1[&replicas=ack/from].
+     */
+    @Path("/v0/entity")
+    public void entity(@Param("id") final String id,
+                       @Param("replicas") final String replicas,
+                       @NotNull final Request request,
+                       @NotNull final HttpSession session) throws IOException {
+        if (id == null || id.isEmpty()) {
+            session.sendError(Response.BAD_REQUEST, Protocol.FAIL_MISSING_ID);
+            return;
+        }
+
+        final boolean proxied = request.getHeader(Protocol.HEADER_PROXIED) != null;
+        final var fraction = proxied
+                                ? ReplicasFraction.one()
+                                : ReplicasFraction.parse(replicas, clusterSize);
+        if (fraction.ack < 1 || fraction.ack > fraction.from || fraction.from > clusterSize) {
+            session.sendError(Response.BAD_REQUEST, Protocol.FAIL_REPLICAS);
+            return;
+        }
+
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+            case Request.METHOD_PUT:
+            case Request.METHOD_DELETE:
+                executeAsync(session, () -> processEntityRequest(id, fraction, request, proxied));
+                break;
+
+            default:
+                session.sendError(Response.METHOD_NOT_ALLOWED, Protocol.FAIL_METHOD);
+                break;
+        }
+    }
+
+    private Response processEntityRequest(@NotNull final String id,
+                                          @NotNull final ReplicasFraction fraction,
+                                          @NotNull final Request request,
+                                          final boolean proxied) {
+        if (!proxied) {
+            request.addHeader(Protocol.HEADER_PROXIED);
+        }
+
+        final var nodes = topology.nodesFor(id, fraction.from);
+        final var successfulResponses = new ArrayList<DataWithTimestamp>(nodes.size());
+        for (final var node : nodes) {
+            try {
+                DataWithTimestamp data = null;
+
+                if (topology.isMe(node)) {
+                    switch (request.getMethod()) {
+                        case Request.METHOD_GET: {
+                            data = extractDataFromGetResponse(get(id));
+                            if (data == null) {
+                                continue;
+                            }
+                            break;
+                        }
+
+                        case Request.METHOD_PUT: {
+                            if (put(id, request.getBody()).getStatus() != 201) {
+                                continue;
+                            }
+                            break;
+                        }
+
+                        case Request.METHOD_DELETE: {
+                            if (delete(id).getStatus() != 202) {
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    final var response = proxy(node, request);
+                    if (response.getStatus() >= 500) {
+                        continue;
+                    } else if (request.getMethod() == Request.METHOD_GET) {
+                        data = extractDataFromGetResponse(response);
+                        if (data == null) {
+                            continue;
+                        }
+                    }
+                }
+
+                successfulResponses.add(data);
+            } catch (IOException e) {
+                log.severe(e.getMessage());
+            }
+        }
+
+        if (successfulResponses.size() < fraction.ack) {
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        } else {
+            switch (request.getMethod()) {
+                case Request.METHOD_GET:
+                    return resolveSuitableGetResponse(successfulResponses, proxied);
+
+                case Request.METHOD_PUT:
+                    return new Response(Response.CREATED, Response.EMPTY);
+
+                case Request.METHOD_DELETE:
+                    return new Response(Response.ACCEPTED, Response.EMPTY);
+
+                default:
+                    return new Response(Response.INTERNAL_ERROR, "Impossible".getBytes(UTF_8));
+            }
+        }
+    }
+
+    private DataWithTimestamp extractDataFromGetResponse(@NotNull final Response response) {
+        switch (response.getStatus()) {
+            case 200:
+                return DataWithTimestamp.fromBytes(response.getBody());
+
+            case 404:
+                if (response.getBody().length == 0) {
+                    return DataWithTimestamp.fromAbsent();
+                } else {
+                    return DataWithTimestamp.fromBytes(response.getBody());
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses,
+                                            final boolean proxied) {
+        DataWithTimestamp max = DataWithTimestamp.fromAbsent();
+        for (final var candidate : responses) {
+            if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
+                max = candidate;
+            }
+        }
+
+        if (max.isPresent()) {
+            try {
+                return proxied
+                    ? new Response(Response.OK, max.toBytes())
+                    : new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
+            } catch (IOException e) {
+                return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
+            }
+        } else {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        }
+    }
+
     private Response proxy(final String node, final Request request) throws IOException {
         try {
             return bridges.sendRequestTo(request, node);
@@ -222,25 +243,11 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    private Response dataWithTimestampToResponse(@NotNull final String code, @NotNull final DataWithTimestamp value) {
-        Response res = new Response(code);
-        res.addHeader(String.format(Protocol.HEADER_STATE_FORMAT, value.state.value));
-        res.addHeader(String.format(Protocol.HEADER_TIMESTAMP_FORMAT, value.timestamp));
-        if (value.isPresent()) {
-            try {
-                res.setBody(ByteBufferUtils.getByteArray(value.getData()));
-            } catch (IOException e) {
-                return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
-            }
-        }
-        return res;
-    }
-
     private Response get(final String id) throws IOException {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-            final var data = dao.getWithTimestamp(key);
-            return dataWithTimestampToResponse(data.isPresent() ? Response.OK : Response.NOT_FOUND, data);
+            final var val = dao.getWithTimestamp(key);
+            return new Response(Response.OK, val.toBytes());
         } catch (NoSuchElementException ex) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
@@ -249,14 +256,14 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response put(final String id, final byte[] value) throws IOException {
         final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
         final var val = ByteBuffer.wrap(value);
-        final var data = dao.upsertWithTimestamp(key, val);
-        return dataWithTimestampToResponse(Response.CREATED, data);
+        dao.upsertWithTimestamp(key, val);
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private Response delete(final String id) throws IOException {
         final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-        final var data = dao.removeWithTimestamp(key);
-        return dataWithTimestampToResponse(Response.ACCEPTED, data);
+        dao.removeWithTimestamp(key);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     private void sendError(final HttpSession session, final String code, final String data) {
@@ -281,17 +288,16 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         if (request.getMethod() != Request.METHOD_GET) {
-            sendError(session, Response.METHOD_NOT_ALLOWED, "Wrong method");
+            sendError(session, Response.METHOD_NOT_ALLOWED, Protocol.FAIL_METHOD);
             return;
         }
 
         myWorkers.execute(() -> {
             try {
                 final var from = ByteBuffer.wrap(start.getBytes(UTF_8));
-                final var to =
-                        end == null || end.isEmpty()
-                            ? null
-                            : ByteBuffer.wrap(end.getBytes(UTF_8));
+                final var to = end == null || end.isEmpty()
+                                ? null
+                                : ByteBuffer.wrap(end.getBytes(UTF_8));
                 final var records = dao.range(from, to);
 
                 final var storageSession = (StorageSession) session;

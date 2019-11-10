@@ -82,11 +82,12 @@ public final class RocksDAO implements DAO {
     /**
      * Hacky way to store data with timestamp on it in plain old RocksDB.
      */
-    public void upsertWithTimestamp(@NotNull final ByteBuffer key,
-                                    @NotNull final ByteBuffer value) throws RockException {
+    public DataWithTimestamp upsertWithTimestamp(@NotNull final ByteBuffer key,
+                                                 @NotNull final ByteBuffer value) throws RockException {
         try {
-            db.put(ByteBufferUtils.restoreByteArray(key),
-                   DataWithTimestamp.fromPresent(value, System.currentTimeMillis()).toBytes());
+            final var data = DataWithTimestamp.fromPresent(value, System.currentTimeMillis());
+            db.put(ByteBufferUtils.restoreByteArray(key), data.toBytes());
+            return data;
         } catch (RocksDBException e) {
             throw new RockException("Error while upsertWithTimestamp", e);
         }
@@ -104,10 +105,11 @@ public final class RocksDAO implements DAO {
     /**
      * Hacky way to mark data with timestamp deleted in plain old RocksDB.
      */
-    public void removeWithTimestamp(@NotNull final ByteBuffer key) throws IOException {
+    public DataWithTimestamp removeWithTimestamp(@NotNull final ByteBuffer key) throws IOException {
         try {
-            db.put(ByteBufferUtils.restoreByteArray(key),
-                   DataWithTimestamp.fromRemovedAt(System.currentTimeMillis()).toBytes());
+            final var data = DataWithTimestamp.fromRemovedAt(System.currentTimeMillis());
+            db.put(ByteBufferUtils.restoreByteArray(key), data.toBytes());
+            return data;
         } catch (RocksDBException e) {
             throw new RockException("Error while removeWithTimestamp", e);
         }

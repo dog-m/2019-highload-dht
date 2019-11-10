@@ -31,11 +31,13 @@ public class BasicTopology implements Topology {
         this.me = meNode;
     }
 
+    private int getIndexFor(Object o) {
+        return (o.hashCode() & Integer.MAX_VALUE) % nodes.size();
+    }
+
     @Override
     public String primaryFor(final String id) {
-        final int hash = id.hashCode();
-        final int node = (hash & Integer.MAX_VALUE) % nodes.size();
-        return nodes.get(node);
+        return nodes.get(getIndexFor(id));
     }
 
     @Override
@@ -46,5 +48,17 @@ public class BasicTopology implements Topology {
     @Override
     public Boolean isMe(final String node) {
         return me.equals(node);
+    }
+
+    @Override
+    public List<String> nodesFor(final String id, final int count) {
+        final List<String> result = new ArrayList<>(count);
+
+        for (int c = 0, nodeIndex = getIndexFor(id); c < count; c++, nodeIndex++) {
+            final String node = nodes.get(nodeIndex % nodes.size());
+            result.add(node);
+        }
+
+        return result;
     }
 }

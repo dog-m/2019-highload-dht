@@ -8,4 +8,6 @@ public interface Topology {
     List<String> all();
 
     Boolean isMe(final String node);
+
+    List<String> nodesFor(String id, int count);
 }

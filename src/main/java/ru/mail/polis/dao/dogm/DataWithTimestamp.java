@@ -2,37 +2,30 @@ package ru.mail.polis.dao.dogm;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
-import java.util.List;
 
 public final class DataWithTimestamp {
     public final State state;
     public final long timestamp;
     private final ByteBuffer data;
 
-    enum State {
+    public enum State {
         ABSENT((byte) 0),
         PRESENT((byte) 1),
         REMOVED((byte) -1);
 
-        final byte value;
+        public final byte value;
 
         State(final byte value) {
             this.value = value;
         }
 
-        static State fromValue(final byte value) {
-            switch (value) {
-              case REMOVED.value:
-                  return REMOVED;
-                  break;
-
-              case PRESENT.value:
-                  return PRESENT;
-                  break;
-
-              default:
-                  return ABSENT;
+        public static State fromValue(final byte value) {
+            if (value == REMOVED.value) {
+                return REMOVED;
+            } else if (value == PRESENT.value) {
+                return PRESENT;
+            } else {
+                return ABSENT;
             }
         }
     }
@@ -49,17 +42,17 @@ public final class DataWithTimestamp {
         return state == State.REMOVED;
     }
 
-    private DataWithTimestamp(final long timestamp, final ByteBuffer data, final State state) {
+    public DataWithTimestamp(final long timestamp, final ByteBuffer data, final State state) {
         this.timestamp = timestamp;
         this.state = state;
         this.data = data;
     }
 
-    static DataWithTimestamp fromPresent(final ByteBuffer data, final long timestamp) {
+    public static DataWithTimestamp fromPresent(final ByteBuffer data, final long timestamp) {
         return new DataWithTimestamp(timestamp, data, State.PRESENT);
     }
 
-    static DataWithTimestamp fromRemovedAt(final long timestamp) {
+    public static DataWithTimestamp fromRemovedAt(final long timestamp) {
         return new DataWithTimestamp(timestamp, null, State.REMOVED);
     }
 
@@ -67,7 +60,7 @@ public final class DataWithTimestamp {
         return new DataWithTimestamp(-1, null, State.ABSENT);
     }
 
-    private ByteBuffer getData() throws IOException {
+    public ByteBuffer getData() throws IOException {
         if (!isPresent()) {
             throw new IOException("There are no data");
         }

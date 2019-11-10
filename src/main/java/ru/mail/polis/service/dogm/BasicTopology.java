@@ -18,7 +18,7 @@ public class BasicTopology implements Topology {
      * @param topology - set of nodes in cluster
      * @param myPort   - port of current node
      */
-    public BasicTopology(final Set<String> topology, final int myPort) {
+    BasicTopology(final Set<String> topology, final int myPort) {
         this.nodes = new ArrayList<>(topology);
         String meNode = null;
         final String myPortSignature = ":" + myPort;
@@ -32,7 +32,8 @@ public class BasicTopology implements Topology {
     }
 
     private int getIndexFor(Object o) {
-        return (o.hashCode() & Integer.MAX_VALUE) % nodes.size();
+        final var hash = o.hashCode();
+        return (hash & Integer.MAX_VALUE) % nodes.size();
     }
 
     @Override

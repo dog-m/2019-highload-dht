@@ -5,6 +5,9 @@ import one.nio.http.HttpSession;
 import one.nio.http.Response;
 import one.nio.net.Socket;
 import ru.mail.polis.Record;
+import ru.mail.polis.dao.dogm.ByteBufferUtils;
+import ru.mail.polis.dao.dogm.DataWithTimestamp;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -26,7 +29,7 @@ public class StorageSession extends HttpSession {
     /**
      * Method to send large amount of data to client via chunked-transfer-encoding.
      */
-    public void stream(final Iterator<Record> records) throws IOException {
+    void stream(final Iterator<Record> records) throws IOException {
         this.records = records;
 
         final Response response = new Response(OK);
@@ -43,18 +46,13 @@ public class StorageSession extends HttpSession {
         next();
     }
 
-    private byte[] getArray(final ByteBuffer buffer) {
-        final byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-        return bytes;
-    }
-
     private void next() throws IOException {
         while (records.hasNext() && queueHead == null) {
             final Record record = records.next();
 
-            final byte[] key = getArray(record.getKey());
-            final byte[] value = getArray(record.getValue());
+            final byte[] key = ByteBufferUtils.getByteArray(record.getKey());
+            final var data = DataWithTimestamp.fromBytes(ByteBufferUtils.getByteArray(record.getValue()));
+            final byte[] value = ByteBufferUtils.getByteArray(data.getData());
 
             final int size = key.length + value.length + LF.length;
             final byte[] hexSize = Integer.toHexString(size).getBytes(UTF_8);

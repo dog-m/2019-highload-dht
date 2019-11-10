@@ -213,7 +213,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses,
-                                            final boolean proxied) {
+                                                final boolean proxied) {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
             if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
@@ -224,11 +224,13 @@ public class ServiceImpl extends HttpServer implements Service {
         if (max.isPresent()) {
             try {
                 return proxied
-                    ? new Response(Response.OK, max.toBytes())
-                    : new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
+                        ? new Response(Response.OK, max.toBytes())
+                        : new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
             } catch (IOException e) {
                 return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
             }
+        } else if (max.isRemoved()) {
+            return new Response(Response.NOT_FOUND, max.toBytes());
         } else {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
@@ -247,7 +249,12 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
             final var val = dao.getWithTimestamp(key);
-            return new Response(Response.OK, val.toBytes());
+            
+            if (val.isRemoved()) {
+              return new Response(Response.NOT_FOUND, val.toBytes());
+            } else {
+              return new Response(Response.OK, val.toBytes());
+            }
         } catch (NoSuchElementException ex) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }

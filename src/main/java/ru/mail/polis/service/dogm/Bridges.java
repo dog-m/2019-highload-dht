@@ -23,7 +23,7 @@ public class Bridges {
     public Bridges(final Topology topology) {
         for (final String point : topology.all()) {
             if (!topology.isMe(point)) {
-                clients.put(point, new HttpClient(new ConnectionString(point + "/?timeout=100")));
+                clients.put(point, new HttpClient(new ConnectionString(point + "?timeout=15")));
             }
         }
     }

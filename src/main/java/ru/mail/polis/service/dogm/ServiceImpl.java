@@ -216,7 +216,7 @@ public class ServiceImpl extends HttpServer implements Service {
                                                 final boolean proxied) {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
-            if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
+            if ((candidate.timestamp > max.timestamp && !candidate.isAbsent()) || candidate.isRemoved()) {
                 max = candidate;
             }
         }

@@ -1,5 +1,7 @@
 package ru.mail.polis.service.dogm;
 
+import java.io.Console;
+
 class ReplicasFraction {
     final int ack, from;
 
@@ -16,7 +18,7 @@ class ReplicasFraction {
         return new ReplicasFraction(quorum(clusterSize), clusterSize);
     }
 
-    private static int quorum(int x) {
+    private static int quorum(final int x) {
         return x / 2 + 1;
     }
 

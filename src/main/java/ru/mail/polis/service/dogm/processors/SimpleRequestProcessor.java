@@ -29,20 +29,16 @@ public abstract class SimpleRequestProcessor {
 
     public abstract Response processEntityRequest(@NotNull final String id,
                                                   @NotNull final ReplicasFraction fraction,
-                                                  @NotNull final Request request,
-                                                  final boolean proxied);
+                                                  @NotNull final Request request);
 
-    void applyProxyHeader(final Request request, final boolean proxied) {
-        if (!proxied) {
-            request.addHeader(Protocol.HEADER_PROXIED);
-        }
-    }
+    public abstract Response processEntityDirectly(@NotNull final String id,
+                                                   @NotNull final Request request);
 
     static Response getWrongProcessorResponse() {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));
     }
 
-    Response proxy(final String node, final Request request) throws IOException {
+    Response processEntityRemotely(final String node, final Request request) throws IOException {
         try {
             return bridges.sendRequestTo(request, node);
         } catch (InterruptedException | PoolException | HttpException e) {

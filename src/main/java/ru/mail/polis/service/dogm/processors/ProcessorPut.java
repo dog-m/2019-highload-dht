@@ -3,6 +3,7 @@ package ru.mail.polis.service.dogm.processors;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.dogm.RockException;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.dogm.Bridges;
 import ru.mail.polis.service.dogm.ReplicasFraction;
@@ -34,17 +35,15 @@ public class ProcessorPut extends SimpleRequestProcessor {
     @Override
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
-                                         @NotNull final Request request,
-                                         final boolean proxied) {
-        applyProxyHeader(request, proxied);
-
+                                         @NotNull final Request request) {
         final var nodes = topology.nodesFor(id, fraction.from);
         int successfulResponses = 0;
         for (final var node : nodes) {
             try {
-                final Response response = topology.isMe(node)
-                                            ? put(id, request.getBody())
-                                            : proxy(node, request);
+                final Response response =
+                        topology.isMe(node)
+                                ? processEntityDirectly(id, request)
+                                : processEntityRemotely(node, request);
                 if (response.getStatus() == 201) {
                     ++successfulResponses;
                 }
@@ -60,10 +59,16 @@ public class ProcessorPut extends SimpleRequestProcessor {
         }
     }
 
-    private Response put(final String id, final byte[] value) throws IOException {
-        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-        final var val = ByteBuffer.wrap(value);
-        dao.upsertWithTimestamp(key, val);
-        return new Response(Response.CREATED, Response.EMPTY);
+    @Override
+    public Response processEntityDirectly(@NotNull final String id,
+                                          @NotNull final Request request) {
+        try {
+            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+            final var val = ByteBuffer.wrap(request.getBody());
+            dao.upsertWithTimestamp(key, val);
+            return new Response(Response.CREATED, Response.EMPTY);
+        } catch (RockException e) {
+            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
+        }
     }
 }

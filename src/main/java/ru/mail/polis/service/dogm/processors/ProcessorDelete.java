@@ -34,17 +34,15 @@ public class ProcessorDelete extends SimpleRequestProcessor {
     @Override
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
-                                         @NotNull final Request request,
-                                         final boolean proxied) {
-        applyProxyHeader(request, proxied);
-
+                                         @NotNull final Request request) {
         final var nodes = topology.nodesFor(id, fraction.from);
         int successfulResponses = 0;
         for (final var node : nodes) {
             try {
-                final Response response = topology.isMe(node)
-                                            ? delete(id)
-                                            : proxy(node, request);
+                final Response response =
+                        topology.isMe(node)
+                                ? processEntityDirectly(id, request)
+                                : processEntityRemotely(node, request);
                 if (response.getStatus() == 202) {
                     ++successfulResponses;
                 }
@@ -60,9 +58,15 @@ public class ProcessorDelete extends SimpleRequestProcessor {
         }
     }
 
-    private Response delete(final String id) throws IOException {
-        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-        dao.removeWithTimestamp(key);
-        return new Response(Response.ACCEPTED, Response.EMPTY);
+    @Override
+    public Response processEntityDirectly(@NotNull final String id,
+                                          @NotNull final Request request) {
+        try {
+            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+            dao.removeWithTimestamp(key);
+            return new Response(Response.ACCEPTED, Response.EMPTY);
+        } catch (IOException e) {
+            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
+        }
     }
 }

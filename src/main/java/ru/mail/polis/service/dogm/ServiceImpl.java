@@ -105,8 +105,8 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final boolean proxied = request.getHeader(Protocol.HEADER_PROXIED) != null;
-        final var fraction = proxied
+        final boolean fromCluster = request.getHeader(Protocol.HEADER_FROM_CLUSTER) != null;
+        final var fraction = fromCluster
                                 ? ReplicasFraction.one()
                                 : ReplicasFraction.parse(replicas, clusterSize);
         if (fraction.ack < 1 || fraction.ack > fraction.from || fraction.from > clusterSize) {
@@ -119,7 +119,7 @@ public class ServiceImpl extends HttpServer implements Service {
             case Request.METHOD_GET:
             case Request.METHOD_PUT:
             case Request.METHOD_DELETE:
-                executeAsync(session, () -> processEntityRequest(id, fraction, request, proxied));
+                executeAsync(session, () -> processEntityRequest(id, fraction, request, fromCluster));
                 break;
 
             default:
@@ -131,9 +131,14 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response processEntityRequest(@NotNull final String id,
                                           @NotNull final ReplicasFraction fraction,
                                           @NotNull final Request request,
-                                          final boolean proxied) {
+                                          final boolean fromCluster) {
         final var method = request.getMethod();
-        return processors.get(method).processEntityRequest(id, fraction, request, proxied);
+        if (fromCluster) {
+            return processors.get(method).processEntityDirectly(id, request);
+        } else {
+            request.addHeader(Protocol.HEADER_FROM_CLUSTER);
+            return processors.get(method).processEntityRequest(id, fraction, request);
+        }
     }
 
     private void sendError(final HttpSession session, final String code, final String data) {

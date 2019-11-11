@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -39,17 +38,15 @@ public class ProcessorGet extends SimpleRequestProcessor {
     @Override
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
-                                         @NotNull final Request request,
-                                         final boolean proxied) {
-        applyProxyHeader(request, proxied);
-
+                                         @NotNull final Request request) {
         final var nodes = topology.nodesFor(id, fraction.from);
         final var successfulResponses = new ArrayList<DataWithTimestamp>(nodes.size());
         for (final var node : nodes) {
             try {
-                final Response response = topology.isMe(node)
-                                            ? get(id)
-                                            : proxy(node, request);
+                final Response response =
+                        topology.isMe(node)
+                                ? processEntityDirectly(id, request)
+                                : processEntityRemotely(node, request);
                 final DataWithTimestamp data = extractDataFromGetResponse(response);
                 if (data != null) {
                     successfulResponses.add(data);
@@ -62,12 +59,26 @@ public class ProcessorGet extends SimpleRequestProcessor {
         if (successfulResponses.size() < fraction.ack) {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         } else {
-            return resolveSuitableGetResponse(successfulResponses, proxied);
+            return resolveSuitableGetResponse(successfulResponses);
         }
     }
 
-    private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses,
-                                                final boolean proxied) {
+    @Override
+    public Response processEntityDirectly(@NotNull final String id,
+                                          @NotNull final Request request) {
+        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+        final var val = dao.getWithTimestamp(key);
+
+        if (val.isPresent()) {
+            return new Response(Response.OK, val.toBytes());
+        } else if (val.isRemoved()) {
+            return new Response(Response.NOT_FOUND, val.toBytes());
+        } else {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        }
+    }
+
+    private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses) {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
             if (candidate.isRemoved()) {
@@ -79,18 +90,14 @@ public class ProcessorGet extends SimpleRequestProcessor {
             }
         }
 
-        if (max.isPresent()) {
-            try {
-                return proxied
-                        ? new Response(Response.OK, max.toBytes())
-                        : new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
-            } catch (IOException e) {
-                return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
+        try {
+            if (max.isPresent()) {
+                return new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
+            } else {
+                return new Response(Response.NOT_FOUND, Response.EMPTY);
             }
-        } else if (max.isRemoved() && proxied) {
-            return new Response(Response.NOT_FOUND, max.toBytes());
-        } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        } catch (IOException e) {
+            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
         }
     }
 
@@ -108,21 +115,6 @@ public class ProcessorGet extends SimpleRequestProcessor {
 
             default:
                 return null;
-        }
-    }
-
-    private Response get(final String id) throws IOException {
-        try {
-            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-            final var val = dao.getWithTimestamp(key);
-
-            if (val.isRemoved()) {
-                return new Response(Response.NOT_FOUND, val.toBytes());
-            } else {
-                return new Response(Response.OK, val.toBytes());
-            }
-        } catch (NoSuchElementException ex) {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 }

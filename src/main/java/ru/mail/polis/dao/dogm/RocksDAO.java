@@ -62,11 +62,11 @@ public final class RocksDAO implements DAO {
      * Hacky way to retrieve data with timestamp on it from plain old RocksDB.
      */
     @NotNull
-    public DataWithTimestamp getWithTimestamp(@NotNull final ByteBuffer key) throws RockException {
+    public DataWithTimestamp getWithTimestamp(@NotNull final ByteBuffer key) {
         try {
             return DataWithTimestamp.fromBytes(db.get(ByteBufferUtils.restoreByteArray(key)));
         } catch (RocksDBException e) {
-            throw new RockException("Error while getWithTimestamp", e);
+            return DataWithTimestamp.fromAbsent();
         }
     }
 

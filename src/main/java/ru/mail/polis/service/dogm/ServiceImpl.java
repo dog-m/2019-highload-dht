@@ -13,11 +13,16 @@ import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
-import ru.mail.polis.service.dogm.processors.*;
+import ru.mail.polis.service.dogm.processors.ProcessorDelete;
+import ru.mail.polis.service.dogm.processors.ProcessorGet;
+import ru.mail.polis.service.dogm.processors.ProcessorPut;
+import ru.mail.polis.service.dogm.processors.Protocol;
+import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
@@ -33,14 +38,14 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger("HttpServer");
     private final int clusterSize;
-    private final HashMap<Integer, SimpleRequestProcessor> processors;
+    private final Map<Integer, SimpleRequestProcessor> processors;
 
     /**
+     * Create a new server (node in cluster).
      * @param port server port
      * @param dao data storage
      * @param workers worker pool to work asynchronously
      * @param topologyDescription cluster topology
-     * @throws IOException
      */
     public ServiceImpl(final int port,
                        @NotNull final DAO dao,
@@ -114,13 +119,21 @@ public class ServiceImpl extends HttpServer implements Service {
             case Request.METHOD_GET:
             case Request.METHOD_PUT:
             case Request.METHOD_DELETE:
-                executeAsync(session, () -> processors.get(method).processEntityRequest(id, fraction, request, proxied));
+                executeAsync(session, () -> processEntityRequest(id, fraction, request, proxied));
                 break;
 
             default:
                 session.sendError(Response.METHOD_NOT_ALLOWED, Protocol.FAIL_METHOD);
                 break;
         }
+    }
+
+    private Response processEntityRequest(@NotNull final String id,
+                                          @NotNull final ReplicasFraction fraction,
+                                          @NotNull final Request request,
+                                          final boolean proxied) {
+        final var method = request.getMethod();
+        return processors.get(method).processEntityRequest(id, fraction, request, proxied);
     }
 
     private void sendError(final HttpSession session, final String code, final String data) {

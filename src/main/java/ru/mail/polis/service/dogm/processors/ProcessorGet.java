@@ -27,6 +27,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
     private final Logger log = getLogger("ProcessorGet");
 
     /**
+     * Create a new GET-processor.
      * @param dao DAO implementation
      * @param topology cluster topology
      * @param bridges connection to other nodes in cluster

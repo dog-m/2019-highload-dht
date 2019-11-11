@@ -22,6 +22,7 @@ public class ProcessorDelete extends SimpleRequestProcessor {
     private final Logger log = getLogger("ProcessorDelete");
 
     /**
+     * Create a new DELETE-processor.
      * @param dao DAO implementation
      * @param topology cluster topology
      * @param bridges connection to other nodes in cluster

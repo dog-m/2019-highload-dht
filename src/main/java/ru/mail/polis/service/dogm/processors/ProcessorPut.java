@@ -22,6 +22,7 @@ public class ProcessorPut extends SimpleRequestProcessor {
     private final Logger log = getLogger("ProcessorPut");
 
     /**
+     * Create a new PUT-processor.
      * @param dao DAO implementation
      * @param topology cluster topology
      * @param bridges connection to other nodes in cluster

@@ -23,13 +23,17 @@ public final class DataWithTimestamp {
 
         /**
          * State constructor.
-         * 
          * @param value byte representation of a specific state.
          */
         State(final byte value) {
             this.value = value;
         }
 
+        /**
+         * Restore state from byte.
+         * @param value byte representation
+         * @return state object
+         */
         public static State fromValue(final byte value) {
             if (value == REMOVED.value) {
                 return REMOVED;
@@ -54,6 +58,7 @@ public final class DataWithTimestamp {
     }
 
     /**
+     * Create new data with timestamp.
      * @param timestamp moment in time in milliseconds
      * @param data actual data
      * @param state data state
@@ -76,6 +81,10 @@ public final class DataWithTimestamp {
         return new DataWithTimestamp(-1, null, State.ABSENT);
     }
 
+    /**
+     * Return stored data. Throws if there is void.
+     * @return actual data
+     */
     public ByteBuffer getData() throws IOException {
         if (!isPresent()) {
             throw new IOException("There are no data");

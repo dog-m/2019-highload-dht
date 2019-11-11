@@ -42,22 +42,12 @@ public class ProcessorPut extends SimpleRequestProcessor {
         int successfulResponses = 0;
         for (final var node : nodes) {
             try {
-                if (topology.isMe(node)) {
-                    if (request.getMethod() == Request.METHOD_PUT) {
-                        if (put(id, request.getBody()).getStatus() != 201) {
-                            continue;
-                        }
-                    } else {
-                        return getWrongProcessorResponse();
-                    }
-                } else {
-                    final var response = proxy(node, request);
-                    if (response.getStatus() >= 500) {
-                        continue;
-                    }
+                final Response response = topology.isMe(node)
+                                            ? put(id, request.getBody())
+                                            : proxy(node, request);
+                if (response.getStatus() == 201) {
+                    ++successfulResponses;
                 }
-
-                ++successfulResponses;
             } catch (IOException e) {
                 log.warning(Protocol.WARN_PROCESSOR);
             }

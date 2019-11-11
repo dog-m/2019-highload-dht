@@ -47,29 +47,13 @@ public class ProcessorGet extends SimpleRequestProcessor {
         final var successfulResponses = new ArrayList<DataWithTimestamp>(nodes.size());
         for (final var node : nodes) {
             try {
-                DataWithTimestamp data = null;
-
-                if (topology.isMe(node)) {
-                    if (request.getMethod() == Request.METHOD_GET) {
-                        data = extractDataFromGetResponse(get(id));
-                        if (data == null) {
-                            continue;
-                        }
-                    }
-                    return getWrongProcessorResponse();
-                } else {
-                    final var response = proxy(node, request);
-                    if (response.getStatus() >= 500) {
-                        continue;
-                    } else if (request.getMethod() == Request.METHOD_GET) {
-                        data = extractDataFromGetResponse(response);
-                        if (data == null) {
-                            continue;
-                        }
-                    }
+                final Response response = topology.isMe(node)
+                                            ? get(id)
+                                            : proxy(node, request);
+                final DataWithTimestamp data = extractDataFromGetResponse(response);
+                if (data != null) {
+                    successfulResponses.add(data);
                 }
-
-                successfulResponses.add(data);
             } catch (IOException e) {
                 log.warning(Protocol.WARN_PROCESSOR);
             }
@@ -87,7 +71,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
             if (candidate.isRemoved()) {
-                continue;
+                max = candidate; // keep removed
             }
             else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
                 max = candidate;

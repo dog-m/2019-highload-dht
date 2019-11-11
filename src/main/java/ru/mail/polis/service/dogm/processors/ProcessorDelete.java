@@ -42,22 +42,12 @@ public class ProcessorDelete extends SimpleRequestProcessor {
         int successfulResponses = 0;
         for (final var node : nodes) {
             try {
-                if (topology.isMe(node)) {
-                    if (request.getMethod() == Request.METHOD_DELETE) {
-                        if (delete(id).getStatus() != 202) {
-                            continue;
-                        }
-                    } else {
-                        return getWrongProcessorResponse();
-                    }
-                } else {
-                    final var response = proxy(node, request);
-                    if (response.getStatus() >= 500) {
-                        continue;
-                    }
+                final Response response = topology.isMe(node)
+                                            ? delete(id)
+                                            : proxy(node, request);
+                if (response.getStatus() == 202) {
+                    ++successfulResponses;
                 }
-
-                ++successfulResponses;
             } catch (IOException e) {
                 log.warning(Protocol.WARN_PROCESSOR);
             }

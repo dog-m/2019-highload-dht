@@ -16,7 +16,7 @@ import java.util.logging.Logger;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public abstract class SimpleRequestProcessor {
-    private final Logger log = Logger.getLogger("SimpleRequestProcessor");
+    protected final Logger log = Logger.getLogger(getClass().getName());
     protected final RocksDAO dao;
     protected final Topology topology;
     private final Bridges bridges;
@@ -33,6 +33,33 @@ public abstract class SimpleRequestProcessor {
 
     public abstract Response processEntityDirectly(@NotNull final String id,
                                                    @NotNull final Request request);
+
+    protected Response processEntityRequestOnClusterEmptyResult(@NotNull final String id,
+                                                                @NotNull final ReplicasFraction fraction,
+                                                                @NotNull final Request request,
+                                                                final String codeString,
+                                                                final int codeInteger) {
+        int successfulResponses = 0;
+        for (final var node : topology.nodesFor(id, fraction.from)) {
+            try {
+                final Response response =
+                        topology.isMe(node)
+                                ? processEntityDirectly(id, request)
+                                : processEntityRemotely(node, request);
+                if (response.getStatus() == codeInteger) {
+                    ++successfulResponses;
+                }
+            } catch (IOException e) {
+                log.warning(Protocol.WARN_PROCESSOR);
+            }
+        }
+
+        if (successfulResponses < fraction.ack) {
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        } else {
+            return new Response(codeString, Response.EMPTY);
+        }
+    }
 
     static Response getWrongProcessorResponse() {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));

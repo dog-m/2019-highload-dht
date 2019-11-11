@@ -14,17 +14,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.logging.Logger.getLogger;
 
 /**
  * Request processor for GET method.
  */
 public class ProcessorGet extends SimpleRequestProcessor {
-    private final Logger log = getLogger("ProcessorGet");
-
     /**
      * Create a new GET-processor.
      * @param dao DAO implementation

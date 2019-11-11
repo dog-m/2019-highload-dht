@@ -10,17 +10,13 @@ import ru.mail.polis.service.dogm.Topology;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.logging.Logger.getLogger;
 
 /**
  * Request processor for DELETE method.
  */
 public class ProcessorDelete extends SimpleRequestProcessor {
-    private final Logger log = getLogger("ProcessorDelete");
-
     /**
      * Create a new DELETE-processor.
      * @param dao DAO implementation
@@ -35,26 +31,10 @@ public class ProcessorDelete extends SimpleRequestProcessor {
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
                                          @NotNull final Request request) {
-        int successfulResponses = 0;
-        for (final var node : topology.nodesFor(id, fraction.from)) {
-            try {
-                final Response response =
-                        topology.isMe(node)
-                                ? processEntityDirectly(id, request)
-                                : processEntityRemotely(node, request);
-                if (response.getStatus() == 202) {
-                    ++successfulResponses;
-                }
-            } catch (IOException e) {
-                log.warning(Protocol.WARN_PROCESSOR);
-            }
-        }
-
-        if (successfulResponses < fraction.ack) {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        } else {
-            return new Response(Response.ACCEPTED, Response.EMPTY);
-        }
+        final var codeString = Response.ACCEPTED;
+        final var codeInteger = 202;
+        return processEntityRequestOnClusterEmptyResult(
+                id, fraction, request, codeString, codeInteger);
     }
 
     @Override

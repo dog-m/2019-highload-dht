@@ -1,9 +1,9 @@
 #!/bin/bash
 # * wrk should be in /usr/local/bin (see [https://github.com/giltene/wrk2/wiki/Installing-wrk2-on-Linux])
-# 1. 'sudo ./pre-profile.sh'
-# 2. './gradlew run' in separate console
-# 3. './warm-up.sh'
-# 4. './do-profile.sh' in async-profiler root(!) directory
+# 1. 'sudo ~/pre-profile.sh' (or do manually)
+# 2. '~/gradlew run' in separate console
+# 3. '~/warm-up.sh'
+# 4. '~/do-profile.sh' in async-profiler root(!) directory
 
 ### User-defined values ###
 
@@ -46,7 +46,7 @@ then
 
 else
   echo "Found process ${TARGET} on id ${PID}"
-  echo "Have a cup of tee. It will take around ${DURATION}"
+  echo "Have a cup of tea. It will take around ${DURATION}"
 
   echo 'Collecting WRK2 data...'
     for METHOD in "${HTTP_METHODS[@]}"

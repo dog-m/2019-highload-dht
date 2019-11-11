@@ -46,8 +46,8 @@ public abstract class SimpleRequestProcessor {
         try {
             return bridges.sendRequestTo(request, node);
         } catch (InterruptedException | PoolException | HttpException e) {
-            log.severe(Protocol.FAIL_PROXY);
-            return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_PROXY.getBytes(UTF_8));
+            log.warning(Protocol.WARN_PROXY);
+            return new Response(Response.INTERNAL_ERROR, Protocol.WARN_PROXY.getBytes(UTF_8));
         }
     }
 }

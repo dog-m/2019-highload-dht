@@ -71,7 +71,8 @@ public class ProcessorGet extends SimpleRequestProcessor {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
             if (candidate.isRemoved()) {
-                max = candidate; // keep removed
+                max = candidate;
+                break;
             }
             else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
                 max = candidate;
@@ -86,7 +87,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
             } catch (IOException e) {
                 return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
             }
-        } else if (max.isRemoved()) {
+        } else if (max.isRemoved() && proxied) {
             return new Response(Response.NOT_FOUND, max.toBytes());
         } else {
             return new Response(Response.NOT_FOUND, Response.EMPTY);

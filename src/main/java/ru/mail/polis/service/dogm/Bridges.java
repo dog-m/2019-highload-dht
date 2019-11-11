@@ -1,15 +1,15 @@
 package ru.mail.polis.service.dogm;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
-
+import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.ConnectionString;
-import one.nio.http.HttpClient;
 import one.nio.pool.PoolException;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Bridging class for redirecting requests to other nodes in cluster.

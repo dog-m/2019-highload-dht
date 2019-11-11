@@ -31,7 +31,7 @@ public class BasicTopology implements Topology {
         this.me = meNode;
     }
 
-    private int getIndexFor(Object o) {
+    private int getIndexFor(final Object o) {
         final var hash = o.hashCode();
         return (hash & Integer.MAX_VALUE) % nodes.size();
     }

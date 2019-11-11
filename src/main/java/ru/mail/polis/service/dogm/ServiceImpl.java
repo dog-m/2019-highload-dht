@@ -1,6 +1,5 @@
 package ru.mail.polis.service.dogm;
 
-import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -8,22 +7,17 @@ import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
-
 import one.nio.net.Socket;
-import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
+import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.dogm.ByteBufferUtils;
-import ru.mail.polis.dao.dogm.DataWithTimestamp;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
-import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.service.dogm.processors.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
@@ -38,23 +32,31 @@ public class ServiceImpl extends HttpServer implements Service {
     private final RocksDAO dao;
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger("HttpServer");
-    private final Topology topology;
     private final int clusterSize;
-    private final Bridges bridges;
+    private final HashMap<Integer, SimpleRequestProcessor> processors;
 
     /**
-     * Constructor of simple REST/HTTP service.
+     * @param port server port
+     * @param dao data storage
+     * @param workers worker pool to work asynchronously
+     * @param topologyDescription cluster topology
+     * @throws IOException
      */
     public ServiceImpl(final int port,
                        @NotNull final DAO dao,
                        final Executor workers,
-                       @NotNull final Set<String> topology) throws IOException {
+                       @NotNull final Set<String> topologyDescription) throws IOException {
         super(getConfig(port));
         this.dao = (RocksDAO) dao;
         this.myWorkers = workers;
-        this.topology = new BasicTopology(topology, port);
-        this.clusterSize = topology.size();
-        this.bridges = new Bridges(this.topology);
+        this.clusterSize = topologyDescription.size();
+        final Topology topology = new BasicTopology(topologyDescription, port);
+        final Bridges bridges = new Bridges(topology);
+
+        this.processors = new HashMap<>();
+        this.processors.put(Request.METHOD_GET, new ProcessorGet(this.dao, topology, bridges));
+        this.processors.put(Request.METHOD_PUT, new ProcessorPut(this.dao, topology, bridges));
+        this.processors.put(Request.METHOD_DELETE, new ProcessorDelete(this.dao, topology, bridges));
     }
 
     /**
@@ -107,170 +109,18 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        switch (request.getMethod()) {
+        final var method = request.getMethod();
+        switch (method) {
             case Request.METHOD_GET:
             case Request.METHOD_PUT:
             case Request.METHOD_DELETE:
-                executeAsync(session, () -> processEntityRequest(id, fraction, request, proxied));
+                executeAsync(session, () -> processors.get(method).processEntityRequest(id, fraction, request, proxied));
                 break;
 
             default:
                 session.sendError(Response.METHOD_NOT_ALLOWED, Protocol.FAIL_METHOD);
                 break;
         }
-    }
-
-    private Response processEntityRequest(@NotNull final String id,
-                                          @NotNull final ReplicasFraction fraction,
-                                          @NotNull final Request request,
-                                          final boolean proxied) {
-        if (!proxied) {
-            request.addHeader(Protocol.HEADER_PROXIED);
-        }
-
-        final var nodes = topology.nodesFor(id, fraction.from);
-        final var successfulResponses = new ArrayList<DataWithTimestamp>(nodes.size());
-        for (final var node : nodes) {
-            try {
-                DataWithTimestamp data = null;
-
-                if (topology.isMe(node)) {
-                    switch (request.getMethod()) {
-                        case Request.METHOD_GET: {
-                            data = extractDataFromGetResponse(get(id));
-                            if (data == null) {
-                                continue;
-                            }
-                            break;
-                        }
-
-                        case Request.METHOD_PUT: {
-                            if (put(id, request.getBody()).getStatus() != 201) {
-                                continue;
-                            }
-                            break;
-                        }
-
-                        case Request.METHOD_DELETE: {
-                            if (delete(id).getStatus() != 202) {
-                                continue;
-                            }
-                            break;
-                        }
-                    }
-                } else {
-                    final var response = proxy(node, request);
-                    if (response.getStatus() >= 500) {
-                        continue;
-                    } else if (request.getMethod() == Request.METHOD_GET) {
-                        data = extractDataFromGetResponse(response);
-                        if (data == null) {
-                            continue;
-                        }
-                    }
-                }
-
-                successfulResponses.add(data);
-            } catch (IOException e) {
-                log.severe(e.getMessage());
-            }
-        }
-
-        if (successfulResponses.size() < fraction.ack) {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        } else {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    return resolveSuitableGetResponse(successfulResponses, proxied);
-
-                case Request.METHOD_PUT:
-                    return new Response(Response.CREATED, Response.EMPTY);
-
-                case Request.METHOD_DELETE:
-                    return new Response(Response.ACCEPTED, Response.EMPTY);
-
-                default:
-                    return new Response(Response.INTERNAL_ERROR, "Impossible".getBytes(UTF_8));
-            }
-        }
-    }
-
-    private DataWithTimestamp extractDataFromGetResponse(@NotNull final Response response) {
-        switch (response.getStatus()) {
-            case 200:
-                return DataWithTimestamp.fromBytes(response.getBody());
-
-            case 404:
-                if (response.getBody().length == 0) {
-                    return DataWithTimestamp.fromAbsent();
-                } else {
-                    return DataWithTimestamp.fromBytes(response.getBody());
-                }
-
-            default:
-                return null;
-        }
-    }
-
-    private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses,
-                                                final boolean proxied) {
-        DataWithTimestamp max = DataWithTimestamp.fromAbsent();
-        for (final var candidate : responses) {
-            if ((candidate.timestamp > max.timestamp && !candidate.isAbsent()) || candidate.isRemoved()) {
-                max = candidate;
-            }
-        }
-
-        if (max.isPresent()) {
-            try {
-                return proxied
-                        ? new Response(Response.OK, max.toBytes())
-                        : new Response(Response.OK, ByteBufferUtils.getByteArray(max.getData()));
-            } catch (IOException e) {
-                return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(UTF_8));
-            }
-        } else if (max.isRemoved()) {
-            return new Response(Response.NOT_FOUND, max.toBytes());
-        } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
-        }
-    }
-
-    private Response proxy(final String node, final Request request) throws IOException {
-        try {
-            return bridges.sendRequestTo(request, node);
-        } catch (InterruptedException | PoolException | HttpException e) {
-            log.log(Level.SEVERE, Protocol.FAIL_PROXY, e);
-            return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_PROXY.getBytes(UTF_8));
-        }
-    }
-
-    private Response get(final String id) throws IOException {
-        try {
-            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-            final var val = dao.getWithTimestamp(key);
-            
-            if (val.isRemoved()) {
-              return new Response(Response.NOT_FOUND, val.toBytes());
-            } else {
-              return new Response(Response.OK, val.toBytes());
-            }
-        } catch (NoSuchElementException ex) {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
-        }
-    }
-
-    private Response put(final String id, final byte[] value) throws IOException {
-        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-        final var val = ByteBuffer.wrap(value);
-        dao.upsertWithTimestamp(key, val);
-        return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    private Response delete(final String id) throws IOException {
-        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
-        dao.removeWithTimestamp(key);
-        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     private void sendError(final HttpSession session, final String code, final String data) {

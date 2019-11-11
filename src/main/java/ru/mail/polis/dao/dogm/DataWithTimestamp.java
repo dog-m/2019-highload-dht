@@ -3,11 +3,17 @@ package ru.mail.polis.dao.dogm;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+/**
+ * Compound object used to store data with timestamps in RocksDB.
+ */
 public final class DataWithTimestamp {
-    public final State state;
+    private final State state;
     public final long timestamp;
     private final ByteBuffer data;
 
+    /**
+     * State of a data.
+     */
     public enum State {
         ABSENT((byte) 0),
         PRESENT((byte) 1),
@@ -15,6 +21,11 @@ public final class DataWithTimestamp {
 
         public final byte value;
 
+        /**
+         * State constructor.
+         * 
+         * @param value byte representation of a specific state.
+         */
         State(final byte value) {
             this.value = value;
         }
@@ -42,6 +53,11 @@ public final class DataWithTimestamp {
         return state == State.REMOVED;
     }
 
+    /**
+     * @param timestamp moment in time in milliseconds
+     * @param data actual data
+     * @param state data state
+     */
     public DataWithTimestamp(final long timestamp, final ByteBuffer data, final State state) {
         this.timestamp = timestamp;
         this.state = state;

@@ -1,9 +1,8 @@
 package ru.mail.polis.service.dogm;
 
-import java.io.Console;
-
-class ReplicasFraction {
-    final int ack, from;
+public final class ReplicasFraction {
+    public final int ack;
+    public final int from;
 
     private ReplicasFraction(final int ack, final int from) {
         this.ack = ack;

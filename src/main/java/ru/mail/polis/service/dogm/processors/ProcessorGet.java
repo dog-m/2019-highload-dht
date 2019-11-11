@@ -39,9 +39,8 @@ public class ProcessorGet extends SimpleRequestProcessor {
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
                                          @NotNull final Request request) {
-        final var nodes = topology.nodesFor(id, fraction.from);
-        final var successfulResponses = new ArrayList<DataWithTimestamp>(nodes.size());
-        for (final var node : nodes) {
+        final var successfulResponses = new ArrayList<DataWithTimestamp>(fraction.from);
+        for (final var node : topology.nodesFor(id, fraction.from)) {
             try {
                 final Response response =
                         topology.isMe(node)

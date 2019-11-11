@@ -36,9 +36,8 @@ public class ProcessorPut extends SimpleRequestProcessor {
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
                                          @NotNull final Request request) {
-        final var nodes = topology.nodesFor(id, fraction.from);
         int successfulResponses = 0;
-        for (final var node : nodes) {
+        for (final var node : topology.nodesFor(id, fraction.from)) {
             try {
                 final Response response =
                         topology.isMe(node)

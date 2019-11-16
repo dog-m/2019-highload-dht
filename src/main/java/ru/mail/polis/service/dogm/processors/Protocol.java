@@ -11,7 +11,8 @@ public final class Protocol {
     public static final String WARN_PROXY = "Proxy failure";
     public static final String WARN_PROCESSOR = "In-processor failure";
 
-    public static final String HEADER_FROM_CLUSTER = "X-In-Cluster: 1";
+    public static final String HEADER_FROM_CLUSTER_PREFIX = "X-In-Cluster: ";
+    public static final String HEADER_FROM_CLUSTER = HEADER_FROM_CLUSTER_PREFIX + "1";
 
     private Protocol() {
         // not instantiable

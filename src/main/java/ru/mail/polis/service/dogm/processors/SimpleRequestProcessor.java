@@ -1,16 +1,17 @@
 package ru.mail.polis.service.dogm.processors;
 
-import one.nio.http.HttpException;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import one.nio.pool.PoolException;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.dogm.RocksDAO;
-import ru.mail.polis.service.dogm.Bridges;
 import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
 
-import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -20,6 +21,7 @@ public abstract class SimpleRequestProcessor {
     protected final RocksDAO dao;
     protected final Topology topology;
     private final Bridges bridges;
+    protected final long PROCESSING_TIMEOUT = Bridges.TIMEOUT.toMillis() + 1;
 
     SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
         this.dao = dao;
@@ -39,25 +41,36 @@ public abstract class SimpleRequestProcessor {
                                                                 @NotNull final Request request,
                                                                 final String codeString,
                                                                 final int codeInteger) {
-        int successfulResponses = 0;
+        AtomicInteger successfulResponses = new AtomicInteger(0);
+        final var result = new CompletableFuture<Integer>();
+
         for (final var node : topology.nodesFor(id, fraction.from)) {
-            try {
-                final Response response =
-                        topology.isMe(node)
-                                ? processEntityDirectly(id, request)
-                                : processEntityRemotely(node, request);
-                if (response.getStatus() == codeInteger) {
-                    ++successfulResponses;
-                }
-            } catch (IOException e) {
+            (topology.isMe(node)
+                    ? CompletableFuture.supplyAsync(() -> processEntityDirectly(id, request))
+                    : processEntityRemotely(node, request))
+            .thenAccept(
+                    response -> {
+                        if (response.getStatus() == codeInteger) {
+                            final var count = successfulResponses.incrementAndGet();
+                            if (count >= fraction.ack) {
+                                result.complete(count);
+                            }
+                        }
+                    })
+            .exceptionally(e -> {
                 log.warning(Protocol.WARN_PROCESSOR);
-            }
+                return null;
+            });
         }
 
-        if (successfulResponses < fraction.ack) {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        } else {
-            return new Response(codeString, Response.EMPTY);
+        try {
+            if (result.get(PROCESSING_TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
+                return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+            } else {
+                return new Response(codeString, Response.EMPTY);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            return new Response(Response.GATEWAY_TIMEOUT, e.getMessage().getBytes(UTF_8));
         }
     }
 
@@ -65,12 +78,9 @@ public abstract class SimpleRequestProcessor {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));
     }
 
-    Response processEntityRemotely(final String node, final Request request) throws IOException {
-        try {
-            return bridges.sendRequestTo(request, node);
-        } catch (InterruptedException | PoolException | HttpException e) {
-            log.warning(Protocol.WARN_PROXY);
-            return new Response(Response.INTERNAL_ERROR, Protocol.WARN_PROXY.getBytes(UTF_8));
-        }
+    CompletableFuture<Response> processEntityRemotely(final String node, final Request request) {
+        return bridges.sendRequestTo(request, node).thenApply(
+                response -> new Response(String.valueOf(response.statusCode()), response.body())
+        );
     }
 }

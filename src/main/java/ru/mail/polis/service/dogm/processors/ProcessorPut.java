@@ -5,7 +5,6 @@ import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.dogm.RockException;
 import ru.mail.polis.dao.dogm.RocksDAO;
-import ru.mail.polis.service.dogm.Bridges;
 import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
 

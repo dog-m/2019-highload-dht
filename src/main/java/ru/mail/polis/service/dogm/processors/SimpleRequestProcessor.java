@@ -7,6 +7,7 @@ import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
 
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +22,7 @@ public abstract class SimpleRequestProcessor {
     protected final RocksDAO dao;
     protected final Topology topology;
     private final Bridges bridges;
-    protected final long PROCESSING_TIMEOUT = Bridges.TIMEOUT.toMillis() + 1;
+    protected final long TIMEOUT = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
 
     SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
         this.dao = dao;
@@ -41,7 +42,8 @@ public abstract class SimpleRequestProcessor {
                                                                 @NotNull final Request request,
                                                                 final String codeString,
                                                                 final int codeInteger) {
-        AtomicInteger successfulResponses = new AtomicInteger(0);
+        final var successfulResponses = new AtomicInteger(0);
+        final var maxNumberOfExceptions = new AtomicInteger(fraction.from - fraction.ack);
         final var result = new CompletableFuture<Integer>();
 
         for (final var node : topology.nodesFor(id, fraction.from)) {
@@ -51,26 +53,30 @@ public abstract class SimpleRequestProcessor {
             .thenAccept(
                     response -> {
                         if (response.getStatus() == codeInteger) {
-                            final var count = successfulResponses.incrementAndGet();
-                            if (count >= fraction.ack) {
-                                result.complete(count);
+                            final var succeeded = successfulResponses.incrementAndGet();
+                            if (succeeded >= fraction.ack) {
+                                result.complete(succeeded);
                             }
                         }
                     })
             .exceptionally(e -> {
-                log.warning(Protocol.WARN_PROCESSOR);
+                log.warning(Protocol.WARN_PROCESSOR + ":\n" + e.getMessage());
+                if (maxNumberOfExceptions.decrementAndGet() < 0) {
+                    result.completeExceptionally(new IOException("Too many exceptions"));
+                }
                 return null;
             });
         }
 
         try {
-            if (result.get(PROCESSING_TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
+            if (result.get(TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
                 return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
             } else {
                 return new Response(codeString, Response.EMPTY);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            return new Response(Response.GATEWAY_TIMEOUT, e.getMessage().getBytes(UTF_8));
+            final var message = e.getMessage() == null ? e.getClass().getName() : e.getMessage();
+            return new Response(Response.GATEWAY_TIMEOUT, message.getBytes(UTF_8));
         }
     }
 
@@ -80,7 +86,7 @@ public abstract class SimpleRequestProcessor {
 
     CompletableFuture<Response> processEntityRemotely(final String node, final Request request) {
         return bridges.sendRequestTo(request, node).thenApply(
-                response -> new Response(String.valueOf(response.statusCode()), response.body())
+                response -> new Response(response.statusCode() + "", response.body())
         );
     }
 }

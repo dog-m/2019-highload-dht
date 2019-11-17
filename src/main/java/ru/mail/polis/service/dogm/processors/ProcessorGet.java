@@ -13,6 +13,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -34,26 +39,49 @@ public class ProcessorGet extends SimpleRequestProcessor {
     public Response processEntityRequest(@NotNull final String id,
                                          @NotNull final ReplicasFraction fraction,
                                          @NotNull final Request request) {
-        final var successfulResponses = new ArrayList<DataWithTimestamp>(fraction.from);
-        for (final var node : topology.nodesFor(id, fraction.from)) {
-            try {
-                final Response response =
-                        topology.isMe(node)
-                                ? processEntityDirectly(id, request)
-                                : processEntityRemotely(node, request);
-                final DataWithTimestamp data = extractDataFromGetResponse(response);
-                if (data != null) {
-                    successfulResponses.add(data);
+        final var successfulResponses = new AtomicInteger(0);
+        final var responses = new ArrayList<DataWithTimestamp>(fraction.from);
+        final var maxNumberOfExceptions = new AtomicInteger(fraction.from - fraction.ack);
+        final var result = new CompletableFuture<Integer>();
+
+        final var nodes = topology.nodesFor(id, fraction.from);
+        for (int i = 0; i < nodes.size(); i++) {
+            responses.add(null); // will be replaced in future if succeed
+
+            final var node = nodes.get(i);
+            final var index = i;
+            (topology.isMe(node)
+                    ? CompletableFuture.supplyAsync(() -> processEntityDirectly(id, request))
+                    : processEntityRemotely(node, request))
+            .thenAccept(
+                    response -> {
+                        final DataWithTimestamp data = extractDataFromGetResponse(response);
+                        if (data != null) {
+                            responses.set(index, data); // replace NULL with data
+                            final var succeeded = successfulResponses.incrementAndGet();
+                            if (succeeded >= fraction.ack) {
+                                result.complete(succeeded);
+                            }
+                        }
+                    })
+            .exceptionally(e -> {
+                log.warning(Protocol.WARN_PROCESSOR + ":\n" + e.getMessage());
+                if (maxNumberOfExceptions.decrementAndGet() < 0) {
+                    result.completeExceptionally(new IOException("Too many exceptions"));
                 }
-            } catch (IOException e) {
-                log.warning(Protocol.WARN_PROCESSOR);
-            }
+                return null;
+            });
         }
 
-        if (successfulResponses.size() < fraction.ack) {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        } else {
-            return resolveSuitableGetResponse(successfulResponses);
+        try {
+            if (result.get(TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
+                return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+            } else {
+                return resolveSuitableGetResponse(responses);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            final var message = e.getMessage() == null ? e.getClass().getName() : e.getMessage();
+            return new Response(Response.GATEWAY_TIMEOUT, message.getBytes(UTF_8));
         }
     }
 
@@ -75,7 +103,10 @@ public class ProcessorGet extends SimpleRequestProcessor {
     private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses) {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
-            if (candidate.isRemoved()) {
+            if (candidate == null) {
+                // just ignore it
+            }
+            else if (candidate.isRemoved()) {
                 max = candidate;
                 break;
             }

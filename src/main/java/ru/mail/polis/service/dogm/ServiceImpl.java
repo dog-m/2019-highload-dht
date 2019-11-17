@@ -13,7 +13,12 @@ import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
-import ru.mail.polis.service.dogm.processors.*;
+import ru.mail.polis.service.dogm.processors.Bridges;
+import ru.mail.polis.service.dogm.processors.ProcessorDelete;
+import ru.mail.polis.service.dogm.processors.ProcessorGet;
+import ru.mail.polis.service.dogm.processors.ProcessorPut;
+import ru.mail.polis.service.dogm.processors.Protocol;
+import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

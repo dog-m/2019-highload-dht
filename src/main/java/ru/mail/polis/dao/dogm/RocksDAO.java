@@ -29,7 +29,10 @@ public final class RocksDAO implements DAO {
         try {
             final var options = new Options()
                     .setCreateIfMissing(true)
+                    .setMaxBackgroundCompactions(1)
+                    .setMaxBackgroundFlushes(1)
                     .setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
+            options.disableAutoCompactions();
             this.db = RocksDB.open(options, data.getAbsolutePath());
         } catch (RocksDBException e) {
             throw new RockException("Cannot create RocksDB instance", e);

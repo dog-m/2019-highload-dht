@@ -19,7 +19,8 @@ import java.util.logging.Logger;
 public class Bridges {
     private final Logger log = Logger.getLogger(getClass().getName());
     private final Map<String, HttpClient> clients = new HashMap<>();
-    public static final Duration TIMEOUT = Duration.ofMillis(500);
+    public static final Duration TIMEOUT_REQUEST = Duration.ofMillis(500);
+    public static final Duration TIMEOUT_CONNECT = Duration.ofSeconds(5);
 
     /**
      * Constructor for redirector dictionary (Bridges).
@@ -27,22 +28,20 @@ public class Bridges {
     public Bridges(final Topology topology) {
         for (final String point : topology.all()) {
             if (!topology.isMe(point)) {
-                clients.put(point, HttpClient.newBuilder().build());
+                final var clientBuilder = HttpClient.newBuilder()
+                        .connectTimeout(TIMEOUT_CONNECT);
+                clients.put(point, clientBuilder.build());
             }
         }
     }
 
     public CompletableFuture<HttpResponse<byte[]>> sendRequestTo(final Request request,
                                                                  final String node) {
-        final var uri = URI.create(node + request.getURI());
-
-        log.info("bridge URI: " + uri.toString());
-
         var httpRequestBuilder = HttpRequest
                 .newBuilder()
-                .uri(uri)
-                .setHeader(Protocol.HEADER_FROM_CLUSTER_PREFIX, "1")
-                .timeout(TIMEOUT);
+                .uri(URI.create(node + request.getURI()))
+                .setHeader(Protocol.HEADER_FROM_CLUSTER, "1")
+                .timeout(TIMEOUT_REQUEST);
 
         switch (request.getMethod()) {
             case Request.METHOD_GET:

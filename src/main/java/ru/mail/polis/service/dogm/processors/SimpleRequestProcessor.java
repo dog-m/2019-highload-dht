@@ -59,13 +59,7 @@ public abstract class SimpleRequestProcessor {
                             }
                         }
                     })
-            .exceptionally(e -> {
-                log.warning(Protocol.WARN_PROCESSOR + ":\n" + e.getMessage());
-                if (maxNumberOfExceptions.decrementAndGet() < 0) {
-                    result.completeExceptionally(new IOException("Too many exceptions"));
-                }
-                return null;
-            });
+            .exceptionally(e -> futureErrorHandler(e, maxNumberOfExceptions, result));
         }
 
         try {
@@ -80,13 +74,23 @@ public abstract class SimpleRequestProcessor {
         }
     }
 
+    protected Void futureErrorHandler(final Throwable e,
+                                      @NotNull final AtomicInteger maxNumberOfExceptions,
+                                      @NotNull final CompletableFuture<Integer> result) {
+        log.warning(Protocol.WARN_PROCESSOR + ":\n" + e.getMessage());
+        if (maxNumberOfExceptions.decrementAndGet() < 0) {
+            result.completeExceptionally(new IOException("Too many exceptions"));
+        }
+        return null;
+    }
+
     static Response getWrongProcessorResponse() {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));
     }
 
     CompletableFuture<Response> processEntityRemotely(final String node, final Request request) {
         return bridges.sendRequestTo(request, node).thenApply(
-                response -> new Response(response.statusCode() + "", response.body())
+                response -> new Response(String.valueOf(response.statusCode()), response.body())
         );
     }
 }

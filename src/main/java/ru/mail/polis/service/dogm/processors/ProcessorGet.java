@@ -64,13 +64,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
                             }
                         }
                     })
-            .exceptionally(e -> {
-                log.warning(Protocol.WARN_PROCESSOR + ":\n" + e.getMessage());
-                if (maxNumberOfExceptions.decrementAndGet() < 0) {
-                    result.completeExceptionally(new IOException("Too many exceptions"));
-                }
-                return null;
-            });
+            .exceptionally(e -> futureErrorHandler(e, maxNumberOfExceptions, result));
         }
 
         try {
@@ -103,15 +97,15 @@ public class ProcessorGet extends SimpleRequestProcessor {
     private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses) {
         DataWithTimestamp max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
-            if (candidate == null) {
-                // just ignore it
-            }
-            else if (candidate.isRemoved()) {
-                max = candidate;
-                break;
-            }
-            else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
-                max = candidate;
+            // ignore NULLs
+            if (candidate != null) {
+                if (candidate.isRemoved()) {
+                    max = candidate;
+                    break;
+                }
+                else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
+                    max = candidate;
+                }
             }
         }
 

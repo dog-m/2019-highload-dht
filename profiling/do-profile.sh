@@ -7,13 +7,13 @@
 
 ### User-defined values ###
 
-STAGE=5
+STAGE=6
 TARGET='Cluster'  # Cluster on 4, Server on 1..3
 OUTPUT_DIR="$HOME"
 URL='http://localhost:8080'
 WRK_THREADS=2
 WRK_CONNECTIONS=10
-WRK_REQUESTS_PER_SECOND=1000
+WRK_REQUESTS_PER_SECOND=200
 WRK_SCRIPTS_DIR="$HOME/2019-highload-dht/src/test/wrk"
 PROFILING_TYPES=(cpu alloc lock)
 HTTP_METHODS=(get put)  # script names(!)

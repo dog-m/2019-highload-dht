@@ -22,7 +22,7 @@ public abstract class SimpleRequestProcessor {
     protected final RocksDAO dao;
     protected final Topology topology;
     private final Bridges bridges;
-    protected final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
+    protected static final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
 
     SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
         this.dao = dao;

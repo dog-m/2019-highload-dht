@@ -22,8 +22,8 @@ public class BasicTopology implements Topology {
         this.nodes = new ArrayList<>(topology);
         String meNode = null;
         final String myPortSignature = ":" + myPort;
-        for(final String node : topology) {
-            if(node.contains(myPortSignature)) {
+        for (final String node : topology) {
+            if (node.contains(myPortSignature)) {
                 meNode = node;
                 break;
             }

@@ -35,6 +35,12 @@ public class Bridges {
         }
     }
 
+    /**
+     * Redirect request to another node in the cluster.
+     * @param request source request
+     * @param node target node
+     * @return future response from node
+     */
     public CompletableFuture<HttpResponse<byte[]>> sendRequestTo(final Request request,
                                                                  final String node) {
         var httpRequestBuilder = HttpRequest

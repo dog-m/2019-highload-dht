@@ -68,7 +68,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
         }
 
         try {
-            if (result.get(TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
+            if (result.get(TIMEOUT_CLUSTER, TimeUnit.MILLISECONDS) < fraction.ack) {
                 return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
             } else {
                 return resolveSuitableGetResponse(responses);
@@ -102,8 +102,7 @@ public class ProcessorGet extends SimpleRequestProcessor {
                 if (candidate.isRemoved()) {
                     max = candidate;
                     break;
-                }
-                else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
+                } else if (candidate.timestamp > max.timestamp && !candidate.isAbsent()) {
                     max = candidate;
                 }
             }

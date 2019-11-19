@@ -22,7 +22,7 @@ public abstract class SimpleRequestProcessor {
     protected final RocksDAO dao;
     protected final Topology topology;
     private final Bridges bridges;
-    protected final long TIMEOUT = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
+    protected final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
 
     SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
         this.dao = dao;
@@ -63,7 +63,7 @@ public abstract class SimpleRequestProcessor {
         }
 
         try {
-            if (result.get(TIMEOUT, TimeUnit.MILLISECONDS) < fraction.ack) {
+            if (result.get(TIMEOUT_CLUSTER, TimeUnit.MILLISECONDS) < fraction.ack) {
                 return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
             } else {
                 return new Response(codeString, Response.EMPTY);

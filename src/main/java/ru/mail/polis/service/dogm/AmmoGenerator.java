@@ -2,15 +2,36 @@ package ru.mail.polis.service.dogm;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintStream;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Logger;
 
-public class AmmoGenerator {
-    private static final int VALUE_LENGTH = 512;
+import static java.nio.charset.StandardCharsets.US_ASCII;
+
+final class AmmoGenerator {
+    private static final Logger log = Logger.getLogger(AmmoGenerator.class.getName());
+    private static final int VALUE_LENGTH = 256;
+    private final String mode;
+    private final int count;
+    private final PrintStream out;
+
+    private AmmoGenerator(final String mode, final int count) throws FileNotFoundException {
+        if (!"put|put-o|get|get-r|mix".contains(mode)) {
+            throw new UnsupportedOperationException("Unsupported mode: " + mode);
+        }
+
+        this.mode = mode;
+        this.count = count;
+        this.out = new PrintStream(new BufferedOutputStream(new FileOutputStream(mode + ".ammo")), true);
+    }
 
     @NotNull
     private static String randomKey() {
@@ -24,57 +45,127 @@ public class AmmoGenerator {
         return result;
     }
 
-    private static void put() throws IOException {
-        final String key = randomKey();
-        final byte[] value = randomValue();
+    private void put(final String key, final byte[] value) throws IOException {
         final ByteArrayOutputStream request = new ByteArrayOutputStream();
-        try (Writer writer = new OutputStreamWriter(request, StandardCharsets.US_ASCII)) {
+        try (Writer writer = new OutputStreamWriter(request, US_ASCII)) {
             writer.write("PUT /v0/entity?id=" + key + " HTTP/1.1\r\n");
             writer.write("Content-Length: " + value.length + "\r\n");
             writer.write("\r\n");
         }
         request.write(value);
-        System.out.write(Integer.toString(request.size()).getBytes(StandardCharsets.US_ASCII));
-        System.out.write(" put\n".getBytes(StandardCharsets.US_ASCII));
-        request.writeTo(System.out);
-        System.out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(Integer.toString(request.size()).getBytes(US_ASCII));
+        out.write(" put\n".getBytes(US_ASCII));
+        request.writeTo(out);
+        out.write("\r\n".getBytes(US_ASCII));
     }
 
-    public static void get() throws IOException {
-        final String key = randomKey();
+    private void get(final String key) throws IOException {
         final ByteArrayOutputStream request = new ByteArrayOutputStream();
-        try (Writer writer = new OutputStreamWriter(request, StandardCharsets.US_ASCII)) {
+        try (Writer writer = new OutputStreamWriter(request, US_ASCII)) {
             writer.write("GET /v0/entity?id=" + key + " HTTP/1.1\r\n");
             writer.write("\r\n");
         }
-        System.out.write(Integer.toString(request.size()).getBytes(StandardCharsets.US_ASCII));
-        System.out.write(" get\n".getBytes(StandardCharsets.US_ASCII));
-        request.writeTo(System.out);
-        System.out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(Integer.toString(request.size()).getBytes(US_ASCII));
+        out.write(" get\n".getBytes(US_ASCII));
+        request.writeTo(out);
+        out.write("\r\n".getBytes(US_ASCII));
     }
 
-    public static void main(String[] args) throws IOException {
-        if(args.length != 2) {
-            System.err.println("Usage:\n\tjava -cp build/classes/java/main ru.mail.polis.service.<login>.AmmoGenerator <put|get> <requests>");
-            System.exit(-1);
+    private void putUnique() throws IOException {
+        for (int i = 0; i < count; i++) {
+            put(randomKey(), randomValue());
+        }
+    }
+
+    private void getUnique() throws IOException {
+        for (int i = 0; i < count; i++) {
+            get(randomKey());
+        }
+    }
+
+    private ArrayList<String> randomKeys(final int amount) {
+        final var keys = new ArrayList<String>(amount);
+        for (int i = 0; i < amount; i++) {
+            keys.add(randomKey());
+        }
+        return keys;
+    }
+
+    private void mixGetPut() throws IOException {
+        final var keys = randomKeys(count / 2);
+        final var existingKeys = new ArrayList<String>(keys.size());
+        for (int i = 0; i < count; i++) {
+            if (ThreadLocalRandom.current().nextBoolean()) {
+                final var key = keys.get(i % keys.size());
+                put(key, randomValue());
+                existingKeys.add(key);
+            } else {
+                int index = ThreadLocalRandom.current().nextInt(0, existingKeys.size());
+                get(existingKeys.get(index));
+            }
+        }
+    }
+
+    private void putWithOverwrite() throws IOException {
+        final var keys = randomKeys(count);
+        final int repeatCount = count / 10;
+        for(int i = 0; i < repeatCount; i++) {
+            final var index = ThreadLocalRandom.current().nextInt(count);
+            final var key = keys.get(ThreadLocalRandom.current().nextInt(count));
+            keys.set(index, key);
         }
 
-        final String mode = args[0];
-        final int requests = Integer.parseInt(args[1]);
+        for (final String key : keys) {
+            put(key, randomValue());
+        }
+    }
 
+    private static int clamp(final int x, final int low, final int high) {
+        return Math.max(low, Math.min(x, high));
+    }
+
+    private void getWithRecent() throws IOException {
+        final var keys = randomKeys(count);
+        for (int i = 0; i < count; i++) {
+            final int index = (int) Math.round(count * (ThreadLocalRandom.current().nextGaussian() * 0.1 + 0.9));
+            get(keys.get(clamp(index, 0, count - 1)));
+        }
+    }
+
+    private void print() throws IOException {
         switch (mode) {
             case "put":
-                for(int i = 0; i < requests; i++) {
-                    put();
-                }
+                putUnique();
                 break;
+
+            case "put-o":
+                putWithOverwrite();
+                break;
+
             case "get":
-                for(int i = 0; i < requests; i++) {
-                    get();
-                }
+                getUnique();
                 break;
+
+            case "get-r":
+                getWithRecent();
+                break;
+
+            case "mix":
+                mixGetPut();
+                break;
+
             default:
                 throw new UnsupportedOperationException("Unsupported mode: " + mode);
         }
+    }
+
+    public static void main(String[] args) throws IOException {
+        if (args.length != 2) {
+            log.severe("Usage:\n\tjava -cp build/classes/java/main ru.mail.polis.service.<login>.AmmoGenerator <put|get> <requests>");
+            System.exit(-1);
+        }
+
+        final var generator = new AmmoGenerator(args[0], Integer.parseInt(args[1]));
+        generator.print();
     }
 }

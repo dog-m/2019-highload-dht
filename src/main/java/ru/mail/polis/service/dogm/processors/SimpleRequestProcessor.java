@@ -77,7 +77,10 @@ public abstract class SimpleRequestProcessor {
     protected Void futureErrorHandler(final Throwable e,
                                       @NotNull final AtomicInteger maxNumberOfExceptions,
                                       @NotNull final CompletableFuture<Integer> result) {
-        log.warning(String.format("%s:\n%s", Protocol.WARN_PROCESSOR, e.getMessage()));
+        final var message = e.getMessage() == null
+                                ? e.getClass().getName()
+                                : e.getMessage();
+        log.warning(String.format("%s:\n%s", Protocol.WARN_PROCESSOR, message));
         if (maxNumberOfExceptions.decrementAndGet() < 0) {
             result.completeExceptionally(new IOException("Too many exceptions"));
         }

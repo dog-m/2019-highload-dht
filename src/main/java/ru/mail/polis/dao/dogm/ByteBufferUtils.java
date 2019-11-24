@@ -14,6 +14,7 @@ public final class ByteBufferUtils {
      * @param byteArray array to shift
      * @return shifted array wrapped into buffer
      */
+    @NotNull
     public static ByteBuffer shiftByteArray(@NotNull final byte[] byteArray) {
         final byte[] body = byteArray.clone();
 
@@ -30,6 +31,7 @@ public final class ByteBufferUtils {
      * @param buffer modified array wrapped into buffer
      * @return restored byte array
      */
+    @NotNull
     public static byte[] restoreByteArray(@NotNull final ByteBuffer buffer) {
         final byte[] body = getByteArray(buffer);
 
@@ -45,6 +47,7 @@ public final class ByteBufferUtils {
      * @param buffer buffer
      * @return extracted byte array
      */
+    @NotNull
     public static byte[] getByteArray(@NotNull final ByteBuffer buffer) {
         final ByteBuffer duplicate = buffer.duplicate();
         final byte[] body = new byte[duplicate.remaining()];

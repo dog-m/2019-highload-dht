@@ -1,0 +1,11 @@
+phantom:
+  address: 127.0.0.1:8080
+  ammofile: get.ammo
+  load_profile:
+    load_type: rps
+    schedule: line(1, 80, 30s) const(80, 5m)
+telegraf:
+  enabled: false
+overload:
+  enabled: true
+  token_file: token.txt

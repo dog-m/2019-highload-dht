@@ -20,5 +20,8 @@
 !profiling/*.*
 !profiling/*/*.*
 
+!tank/*.md
+!tank/*.yaml
+
 # ...even if they are in subdirectories
 !*/

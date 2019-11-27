@@ -1,4 +1,4 @@
-package ru.mail.polis.service.dogm.processors;
+package ru.mail.polis.service.dogm.processors.entity;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
@@ -6,6 +6,8 @@ import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
+import ru.mail.polis.service.dogm.processors.Bridges;
+import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -27,18 +29,18 @@ public class ProcessorDelete extends SimpleRequestProcessor {
     }
 
     @Override
-    public Response processEntityRequest(@NotNull final String id,
-                                         @NotNull final ReplicasFraction fraction,
-                                         @NotNull final Request request) {
+    public Response processAsCluster(@NotNull final String id,
+                                     @NotNull final ReplicasFraction fraction,
+                                     @NotNull final Request request) {
         final var codeString = Response.ACCEPTED;
         final var codeInteger = 202;
-        return processEntityRequestOnClusterEmptyResult(
+        return processRequestOnClusterEmptyResult(
                 id, fraction, request, codeString, codeInteger);
     }
 
     @Override
-    public Response processEntityDirectly(@NotNull final String id,
-                                          @NotNull final Request request) {
+    public Response processDirectly(@NotNull final String id,
+                                    @NotNull final Request request) {
         try {
             final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
             dao.removeWithTimestamp(key);

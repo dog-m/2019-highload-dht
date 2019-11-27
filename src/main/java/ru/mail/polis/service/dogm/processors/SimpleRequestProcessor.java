@@ -24,32 +24,32 @@ public abstract class SimpleRequestProcessor {
     private final Bridges bridges;
     protected static final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
 
-    SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
+    public SimpleRequestProcessor(final RocksDAO dao, final Topology topology, final Bridges bridges) {
         this.dao = dao;
         this.topology = topology;
         this.bridges = bridges;
     }
 
-    public abstract Response processEntityRequest(@NotNull final String id,
-                                                  @NotNull final ReplicasFraction fraction,
-                                                  @NotNull final Request request);
+    public abstract Response processAsCluster(@NotNull final String id,
+                                              @NotNull final ReplicasFraction fraction,
+                                              @NotNull final Request request);
 
-    public abstract Response processEntityDirectly(@NotNull final String id,
-                                                   @NotNull final Request request);
+    public abstract Response processDirectly(@NotNull final String id,
+                                             @NotNull final Request request);
 
-    protected Response processEntityRequestOnClusterEmptyResult(@NotNull final String id,
-                                                                @NotNull final ReplicasFraction fraction,
-                                                                @NotNull final Request request,
-                                                                final String codeString,
-                                                                final int codeInteger) {
+    protected Response processRequestOnClusterEmptyResult(@NotNull final String id,
+                                                          @NotNull final ReplicasFraction fraction,
+                                                          @NotNull final Request request,
+                                                          @NotNull final String codeString,
+                                                          final int codeInteger) {
         final var successfulResponses = new AtomicInteger(0);
         final var maxNumberOfExceptions = new AtomicInteger(fraction.from - fraction.ack);
         final var result = new CompletableFuture<Integer>();
 
         for (final var node : topology.nodesFor(id, fraction.from)) {
             (topology.isMe(node)
-                    ? CompletableFuture.supplyAsync(() -> processEntityDirectly(id, request))
-                    : processEntityRemotely(node, request))
+                    ? CompletableFuture.supplyAsync(() -> processDirectly(id, request))
+                    : processRequestRemotely(node, request))
             .thenAccept(
                     response -> {
                         if (response.getStatus() == codeInteger) {
@@ -74,7 +74,7 @@ public abstract class SimpleRequestProcessor {
         }
     }
 
-    protected Void futureErrorHandler(final Throwable e,
+    protected Void futureErrorHandler(@NotNull final Throwable e,
                                       @NotNull final AtomicInteger maxNumberOfExceptions,
                                       @NotNull final CompletableFuture<Integer> result) {
         final var message = e.getMessage() == null
@@ -91,7 +91,7 @@ public abstract class SimpleRequestProcessor {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));
     }
 
-    CompletableFuture<Response> processEntityRemotely(final String node, final Request request) {
+    protected CompletableFuture<Response> processRequestRemotely(final String node, final Request request) {
         return bridges.sendRequestTo(request, node).thenApply(
                 response -> new Response(String.valueOf(response.statusCode()), response.body())
         );

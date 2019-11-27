@@ -38,6 +38,9 @@ dependencies {
 
     // RocksDB
     compile("org.rocksdb:rocksdbjni:6.2.2")
+
+    // Mozilla Rhino JavaScript engine
+    compile("org.mozilla:rhino:1.7R4")
 }
 
 val run by tasks.getting(JavaExec::class) {

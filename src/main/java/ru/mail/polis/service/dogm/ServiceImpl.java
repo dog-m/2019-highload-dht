@@ -10,13 +10,16 @@ import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.dogm.processors.Bridges;
-import ru.mail.polis.service.dogm.processors.ProcessorDelete;
-import ru.mail.polis.service.dogm.processors.ProcessorGet;
-import ru.mail.polis.service.dogm.processors.ProcessorPut;
+import ru.mail.polis.service.dogm.processors.entity.ProcessorDelete;
+import ru.mail.polis.service.dogm.processors.entity.ProcessorGet;
+import ru.mail.polis.service.dogm.processors.entity.ProcessorPut;
 import ru.mail.polis.service.dogm.processors.Protocol;
 import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
@@ -135,10 +138,10 @@ public class ServiceImpl extends HttpServer implements Service {
                                           final boolean fromCluster) {
         final var method = request.getMethod();
         if (fromCluster) {
-            return processors.get(method).processEntityDirectly(id, request);
+            return processors.get(method).processDirectly(id, request);
         } else {
             request.addHeader(Protocol.HEADER_FROM_CLUSTER);
-            return processors.get(method).processEntityRequest(id, fraction, request);
+            return processors.get(method).processAsCluster(id, fraction, request);
         }
     }
 
@@ -157,7 +160,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public void entities(@Param("start") final String start,
                          @Param("end") final String end,
                          @NotNull final Request request,
-                         final HttpSession session) {
+                         @NotNull final HttpSession session) {
         if (start == null || start.isEmpty()) {
             sendError(session, Response.BAD_REQUEST, "No start");
             return;
@@ -185,7 +188,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(final Socket socket) {
+    public HttpSession createSession(@NotNull final Socket socket) {
         return new StorageSession(socket, this);
     }
 
@@ -202,5 +205,26 @@ public class ServiceImpl extends HttpServer implements Service {
     @FunctionalInterface
     interface Action {
         Response act() throws IOException;
+    }
+
+    @Path("/v0/execjs")
+    public Response execjs(@NotNull final Request request,
+                           @NotNull final HttpSession session) {
+        final var js = new String(request.getBody(), UTF_8);
+        log.info("JS:\n" + js);
+
+        Context cx = Context.enter();
+        try {
+            Scriptable scope = cx.initStandardObjects();
+
+            // Add a global variable "out" that is a JavaScript reflection of System.out
+            Object jsOut = Context.javaToJS(System.out, scope);
+            ScriptableObject.putProperty(scope, "out", jsOut);
+
+            Object result = cx.evaluateString(scope, js, "<client>", 1, null);
+            return Response.ok(Context.toString(result));
+        } finally {
+            Context.exit();
+        }
     }
 }

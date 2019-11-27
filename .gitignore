@@ -23,5 +23,7 @@
 !tank/*.md
 !tank/*.yaml
 
+!bonus/script.js
+
 # ...even if they are in subdirectories
 !*/

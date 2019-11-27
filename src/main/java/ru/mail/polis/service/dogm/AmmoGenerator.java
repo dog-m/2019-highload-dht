@@ -12,6 +12,7 @@ import java.io.PrintStream;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
@@ -29,8 +30,11 @@ final class AmmoGenerator {
     private static final String STR_USAGE = "Usage:\n\tjava " + STR_CLASSPATH + " " + STR_PARAMS;
 
     private final String mode;
+    private final byte[] tag;
     private final int count;
     private final PrintStream out;
+    private static final long GENERATOR_SEED = "2019-highload-dht".hashCode();
+    private final Random keyGenerator = new Random(GENERATOR_SEED);
 
     private AmmoGenerator(final String mode, final int count) throws FileNotFoundException {
         if (!STR_METHODS.contains(mode)) {
@@ -38,13 +42,14 @@ final class AmmoGenerator {
         }
 
         this.mode = mode;
+        this.tag = (" " + mode + "\n").getBytes(US_ASCII);
         this.count = count;
         this.out = new PrintStream(new BufferedOutputStream(new FileOutputStream(mode + ".ammo")), true);
     }
 
     @NotNull
-    private static String randomKey() {
-        return Long.toHexString(ThreadLocalRandom.current().nextLong());
+    private String randomKey() {
+        return "k" + keyGenerator.nextLong();
     }
 
     @NotNull
@@ -63,7 +68,7 @@ final class AmmoGenerator {
         }
         request.write(value);
         out.write(Integer.toString(request.size()).getBytes(US_ASCII));
-        out.write(" put\n".getBytes(US_ASCII));
+        out.write(tag);
         request.writeTo(out);
         out.write(CRLF.getBytes(US_ASCII));
     }
@@ -75,7 +80,7 @@ final class AmmoGenerator {
             writer.write(CRLF);
         }
         out.write(Integer.toString(request.size()).getBytes(US_ASCII));
-        out.write(" get\n".getBytes(US_ASCII));
+        out.write(tag);
         request.writeTo(out);
         out.write(CRLF.getBytes(US_ASCII));
     }

@@ -40,7 +40,7 @@ abstract class ClusterTestBase extends TestBase {
     Set<String> endpoints;
 
     @NotNull
-    private HttpClient client(final int node) {
+    protected HttpClient client(final int node) {
         final String endpoint = Iterators.get(endpoints.iterator(), node);
         return hostToClient.computeIfAbsent(
                 endpoint,

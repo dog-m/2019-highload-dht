@@ -28,9 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ServerSideProcessingTest extends ClusterTestBase {
     private static byte[] jsSource;
-    private static final Duration TIMEOUT = Duration.ofMinutes(2);
-    private int port0;
-    private int port1;
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private File data0;
     private File data1;
     private DAO dao0;
@@ -45,8 +43,8 @@ class ServerSideProcessingTest extends ClusterTestBase {
 
     @BeforeEach
     void beforeEach() throws Exception {
-        port0 = randomPort();
-        port1 = randomPort();
+        final var port0 = randomPort();
+        final var port1 = randomPort();
         endpoints = new LinkedHashSet<>(Arrays.asList(endpoint(port0), endpoint(port1)));
         data0 = Files.createTempDirectory();
         dao0 = DAOFactory.create(data0);
@@ -70,19 +68,19 @@ class ServerSideProcessingTest extends ClusterTestBase {
     }
 
     @Test
-    void jsExecutionTest() {
+    void jsMaxKeyLength() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             final var keys = randomKeys(20);
-            final var longestKey = Arrays.stream(keys)
+            final var maxKeyLength = Arrays.stream(keys)
                     .map(String::length).max(Integer::compareTo)
                     .orElse(-1);
             for (final var key : keys) {
                 final var node = ThreadLocalRandom.current().nextInt(0, 2);
-                /*assertEquals(201, */upsert(node, key, randomValue()).getStatus()/*)*/;
+                assertEquals(201, upsert(node, key, randomValue()).getStatus());
             }
 
-            final var result = post(0, jsSource).getBodyUtf8();
-            assertEquals(longestKey, Integer.parseInt(result));
+            final var result = post(1, jsSource).getBodyUtf8();
+            assertEquals(maxKeyLength, Integer.parseInt(result));
         });
     }
 

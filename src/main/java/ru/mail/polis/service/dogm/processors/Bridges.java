@@ -11,16 +11,14 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
 
 /**
  * Bridging class for redirecting requests to other nodes in cluster.
  */
 public class Bridges {
-    private final Logger log = Logger.getLogger(getClass().getName());
     private final Map<String, HttpClient> clients = new HashMap<>();
-    public static final Duration TIMEOUT_REQUEST = Duration.ofMillis(500);
-    public static final Duration TIMEOUT_CONNECT = Duration.ofSeconds(5);
+    public static final Duration TIMEOUT_REQUEST = Duration.ofSeconds(7);
+    public static final Duration TIMEOUT_CONNECT = Duration.ofSeconds(10);
 
     /**
      * Constructor for redirector dictionary (Bridges).
@@ -55,18 +53,21 @@ public class Bridges {
                 break;
 
             case Request.METHOD_PUT:
-                final var body = HttpRequest.BodyPublishers.ofByteArray(request.getBody());
-                httpRequestBuilder = httpRequestBuilder.PUT(body);
+                final var bodyPut = HttpRequest.BodyPublishers.ofByteArray(request.getBody());
+                httpRequestBuilder = httpRequestBuilder.PUT(bodyPut);
                 break;
 
             case Request.METHOD_DELETE:
                 httpRequestBuilder = httpRequestBuilder.DELETE();
                 break;
 
-            default:
-                log.severe("Unknown method used. Reinterpreted as GET");
-                httpRequestBuilder = httpRequestBuilder.GET();
+            case Request.METHOD_POST:
+                final var bodyPost = HttpRequest.BodyPublishers.ofByteArray(request.getBody());
+                httpRequestBuilder = httpRequestBuilder.POST(bodyPost);
                 break;
+
+            default:
+                throw new IllegalArgumentException("Unknown method used");
         }
 
         return clients.get(node).sendAsync(httpRequestBuilder.build(), HttpResponse.BodyHandlers.ofByteArray());

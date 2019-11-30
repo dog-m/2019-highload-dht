@@ -11,6 +11,7 @@ import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import ru.mail.polis.dao.DAO;
@@ -211,17 +212,29 @@ public class ServiceImpl extends HttpServer implements Service {
     public Response execjs(@NotNull final Request request,
                            @NotNull final HttpSession session) {
         final var js = new String(request.getBody(), UTF_8);
-        log.info("JS:\n" + js);
 
-        Context cx = Context.enter();
+        final var cx = Context.enter();
         try {
             Scriptable scope = cx.initStandardObjects();
+            // Execute script to build functions and init global objects
+            cx.evaluateString(scope, js, "<client>", 1, null);
 
-            // Add a global variable "out" that is a JavaScript reflection of System.out
-            Object jsOut = Context.javaToJS(System.out, scope);
-            ScriptableObject.putProperty(scope, "out", jsOut);
+            final var onNode = scope.get("onNode", scope);
+            final var onReducer = scope.get("onReducer", scope);
+            if (!(onNode instanceof Function && onReducer instanceof Function)) {
+                return new Response(Response.NOT_ACCEPTABLE, "Required functions not found".getBytes(UTF_8));
+            }
 
-            Object result = cx.evaluateString(scope, js, "<client>", 1, null);
+            // Add a global variable "dao" that is a JavaScript reflection of DAO of this node
+            ScriptableObject.putProperty(scope, "dao", Context.javaToJS(dao, scope));
+
+            final var clusterResults = new Object[1];
+            clusterResults[0] = ((Function) onNode).call(cx, scope, scope, null);
+            log.info("JS result: " + Context.toString(clusterResults[0]));
+
+            final Object[] onReducerArgs = { Context.javaToJS(clusterResults, scope) };
+            final var result = ((Function) onReducer).call(cx, scope, scope, onReducerArgs);
+
             return Response.ok(Context.toString(result));
         } finally {
             Context.exit();

@@ -2,10 +2,7 @@ package ru.mail.polis.service;
 
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import ru.mail.polis.Files;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
@@ -18,7 +15,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -67,20 +63,32 @@ class ServerSideProcessingTest extends ClusterTestBase {
         endpoints = Collections.emptySet();
     }
 
-    @Test
+    @RepeatedTest(50)
     void jsMaxKeyLength() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
-            final var keys = randomKeys(20);
+            // Send some data in each node of the cluster
+            final var keys = randomKeys(5);
+            for (int i = 0, keysLength = keys.length; i < keysLength; i++) {
+                final var node = i % 2;
+                final var key = keys[i];
+                final var value = randomValue();
+                assertEquals(201, upsert(node, key, value, 1, 1).getStatus());
+            }
+
+            // Evaluate correct answer
             final var maxKeyLength = Arrays.stream(keys)
                     .map(String::length).max(Integer::compareTo)
                     .orElse(-1);
-            for (final var key : keys) {
-                final var node = ThreadLocalRandom.current().nextInt(0, 2);
-                assertEquals(201, upsert(node, key, randomValue()).getStatus());
-            }
 
-            final var result = post(1, jsSource).getBodyUtf8();
-            assertEquals(maxKeyLength, Integer.parseInt(result));
+            // Check first node
+            final var result0 = post(0, jsSource);
+            assertEquals(200, result0.getStatus());
+            assertEquals(maxKeyLength, Integer.parseInt(result0.getBodyUtf8()));
+
+            // Check second node
+            final var result1 = post(1, jsSource);
+            assertEquals(200, result1.getStatus());
+            assertEquals(maxKeyLength, Integer.parseInt(result1.getBodyUtf8()));
         });
     }
 

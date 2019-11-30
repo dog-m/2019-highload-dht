@@ -48,6 +48,13 @@ public final class RocksDAO implements DAO {
     }
 
     @NotNull
+    public Iterator<Record> iteratorFromBeginning() {
+        final var iterator = db.newIterator();
+        iterator.seekToFirst();
+        return new RocksRecordIterator(iterator);
+    }
+
+    @NotNull
     @Override
     public ByteBuffer get(@NotNull final ByteBuffer key) throws RockException {
         try {

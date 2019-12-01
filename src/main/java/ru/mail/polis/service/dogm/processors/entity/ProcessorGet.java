@@ -1,32 +1,24 @@
 package ru.mail.polis.service.dogm.processors.entity;
 
-import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.dogm.ByteBufferUtils;
 import ru.mail.polis.dao.dogm.DataWithTimestamp;
 import ru.mail.polis.dao.dogm.RocksDAO;
-import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
 import ru.mail.polis.service.dogm.processors.Bridges;
-import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Request processor for GET method.
  */
-public class ProcessorGet extends SimpleRequestProcessor {
+public class ProcessorGet extends EntityProcessor<DataWithTimestamp> {
     /**
      * Create a new GET-processor.
      * @param dao DAO implementation
@@ -38,53 +30,8 @@ public class ProcessorGet extends SimpleRequestProcessor {
     }
 
     @Override
-    public Response processAsCluster(@NotNull final String id,
-                                     @NotNull final ReplicasFraction fraction,
-                                     @NotNull final Request request) {
-        final var successfulResponses = new AtomicInteger(0);
-        final var responses = new ArrayList<DataWithTimestamp>(fraction.from);
-        final var maxNumberOfExceptions = new AtomicInteger(fraction.from - fraction.ack);
-        final var result = new CompletableFuture<Integer>();
-
-        final var nodes = topology.nodesFor(id, fraction.from);
-        for (int i = 0; i < nodes.size(); i++) {
-            responses.add(null); // will be replaced in future if succeed
-
-            final var node = nodes.get(i);
-            final var index = i;
-            (topology.isMe(node)
-                    ? CompletableFuture.supplyAsync(() -> processDirectly(id, request))
-                    : processRequestRemotely(node, request))
-            .thenAccept(
-                    response -> {
-                        final DataWithTimestamp data = extractDataFromGetResponse(response);
-                        if (data != null) {
-                            responses.set(index, data); // replace NULL with data
-                            final var succeeded = successfulResponses.incrementAndGet();
-                            if (succeeded >= fraction.ack) {
-                                result.complete(succeeded);
-                            }
-                        }
-                    })
-            .exceptionally(e -> futureErrorHandler(e, maxNumberOfExceptions, result));
-        }
-
-        try {
-            if (result.get(TIMEOUT_CLUSTER, TimeUnit.MILLISECONDS) < fraction.ack) {
-                return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-            } else {
-                return resolveSuitableGetResponse(responses);
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            final var message = e.getMessage() == null ? e.getClass().getName() : e.getMessage();
-            return new Response(Response.GATEWAY_TIMEOUT, message.getBytes(UTF_8));
-        }
-    }
-
-    @Override
-    public Response processDirectly(@NotNull final String id,
-                                    @NotNull final Request request) {
-        final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+    public Response processDirectly(@NotNull final EntityRequest request) {
+        final var key = ByteBuffer.wrap(request.id.getBytes(UTF_8));
         final var val = dao.getWithTimestamp(key);
 
         if (val.isPresent()) {
@@ -96,8 +43,10 @@ public class ProcessorGet extends SimpleRequestProcessor {
         }
     }
 
-    private Response resolveSuitableGetResponse(@NotNull final List<DataWithTimestamp> responses) {
-        DataWithTimestamp max = DataWithTimestamp.fromAbsent();
+    @Override
+    protected Response resolveClusterResponse(@NotNull final EntityRequest request,
+                                              @NotNull final List<DataWithTimestamp> responses) {
+        var max = DataWithTimestamp.fromAbsent();
         for (final var candidate : responses) {
             // ignore NULLs
             if (candidate != null) {
@@ -121,7 +70,15 @@ public class ProcessorGet extends SimpleRequestProcessor {
         }
     }
 
-    private DataWithTimestamp extractDataFromGetResponse(@NotNull final Response response) {
+    @Override
+    protected boolean isValid(@Nullable final DataWithTimestamp data,
+                              @NotNull final Response response) {
+        return data != null;
+    }
+
+    @Override
+    @Nullable
+    protected DataWithTimestamp getDataFromResponse(@NotNull final Response response) {
         switch (response.getStatus()) {
             case 200:
                 return DataWithTimestamp.fromBytes(response.getBody());

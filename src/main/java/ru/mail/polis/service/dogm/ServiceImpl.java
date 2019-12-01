@@ -10,19 +10,18 @@ import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Function;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.dogm.processors.Bridges;
+import ru.mail.polis.service.dogm.processors.Protocol;
+import ru.mail.polis.service.dogm.processors.entity.EntityProcessor;
+import ru.mail.polis.service.dogm.processors.entity.EntityRequest;
 import ru.mail.polis.service.dogm.processors.entity.ProcessorDelete;
 import ru.mail.polis.service.dogm.processors.entity.ProcessorGet;
 import ru.mail.polis.service.dogm.processors.entity.ProcessorPut;
-import ru.mail.polis.service.dogm.processors.Protocol;
-import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
+import ru.mail.polis.service.dogm.processors.execjs.ExecJSRequest;
+import ru.mail.polis.service.dogm.processors.execjs.ProcessorPost;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,9 +40,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class ServiceImpl extends HttpServer implements Service {
     private final RocksDAO dao;
     private final Executor myWorkers;
-    private final Logger log = Logger.getLogger("HttpServer");
+    private final Logger log = Logger.getLogger(getClass().getName());
     private final int clusterSize;
-    private final Map<Integer, SimpleRequestProcessor> processors;
+    private final Map<Integer, EntityProcessor<?>> processors;
+    private final ProcessorPost jsProcessor;
 
     /**
      * Create a new server (node in cluster).
@@ -54,7 +54,7 @@ public class ServiceImpl extends HttpServer implements Service {
      */
     public ServiceImpl(final int port,
                        @NotNull final DAO dao,
-                       final Executor workers,
+                       @NotNull final Executor workers,
                        @NotNull final Set<String> topologyDescription) throws IOException {
         super(getConfig(port));
         this.dao = (RocksDAO) dao;
@@ -67,6 +67,8 @@ public class ServiceImpl extends HttpServer implements Service {
         this.processors.put(Request.METHOD_GET, new ProcessorGet(this.dao, topology, bridges));
         this.processors.put(Request.METHOD_PUT, new ProcessorPut(this.dao, topology, bridges));
         this.processors.put(Request.METHOD_DELETE, new ProcessorDelete(this.dao, topology, bridges));
+
+        this.jsProcessor = new ProcessorPost(this.dao, topology, bridges);
     }
 
     /**
@@ -119,12 +121,13 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
+        final var compoundRequest = new EntityRequest(id, fromCluster, request, fraction);
         final var method = request.getMethod();
         switch (method) {
             case Request.METHOD_GET:
             case Request.METHOD_PUT:
             case Request.METHOD_DELETE:
-                executeAsync(session, () -> processEntityRequest(id, fraction, request, fromCluster));
+                executeAsync(session, () -> processEntityRequest(compoundRequest));
                 break;
 
             default:
@@ -133,16 +136,13 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    private Response processEntityRequest(@NotNull final String id,
-                                          @NotNull final ReplicasFraction fraction,
-                                          @NotNull final Request request,
-                                          final boolean fromCluster) {
-        final var method = request.getMethod();
-        if (fromCluster) {
-            return processors.get(method).processDirectly(id, request);
+    private Response processEntityRequest(@NotNull final EntityRequest request) {
+        final var method = request.raw.getMethod();
+        if (request.fromCluster) {
+            return processors.get(method).processDirectly(request);
         } else {
-            request.addHeader(Protocol.HEADER_FROM_CLUSTER);
-            return processors.get(method).processAsCluster(id, fraction, request);
+            request.raw.addHeader(Protocol.HEADER_FROM_CLUSTER);
+            return processors.get(method).processAsCluster(request);
         }
     }
 
@@ -209,35 +209,27 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Path("/v0/execjs")
-    public Response execjs(@NotNull final Request request,
-                           @NotNull final HttpSession session) {
+    public void execjs(@NotNull final Request request,
+                       @NotNull final HttpSession session) {
+        if (request.getMethod() != Request.METHOD_POST) {
+            sendError(session, Response.METHOD_NOT_ALLOWED, "Use POST method instead");
+            return;
+        }
+
         final var js = new String(request.getBody(), UTF_8);
+        final boolean fromCluster = request.getHeader(Protocol.HEADER_FROM_CLUSTER) != null;
+        final var fraction = ReplicasFraction.all(clusterSize);
 
-        final var cx = Context.enter();
-        try {
-            Scriptable scope = cx.initStandardObjects();
-            // Execute script to build functions and init global objects
-            cx.evaluateString(scope, js, "<client>", 1, null);
+        final var compoundRequest = new ExecJSRequest(js, fromCluster, request, fraction);
+        executeAsync(session, () -> processExecJSRequest(compoundRequest));
+    }
 
-            final var onNode = scope.get("onNode", scope);
-            final var onReducer = scope.get("onReducer", scope);
-            if (!(onNode instanceof Function && onReducer instanceof Function)) {
-                return new Response(Response.NOT_ACCEPTABLE, "Required functions not found".getBytes(UTF_8));
-            }
-
-            // Add a global variable "dao" that is a JavaScript reflection of DAO of this node
-            ScriptableObject.putProperty(scope, "dao", Context.javaToJS(dao, scope));
-
-            final var clusterResults = new Object[1];
-            clusterResults[0] = ((Function) onNode).call(cx, scope, scope, null);
-            log.info("JS result: " + Context.toString(clusterResults[0]));
-
-            final Object[] onReducerArgs = { Context.javaToJS(clusterResults, scope) };
-            final var result = ((Function) onReducer).call(cx, scope, scope, onReducerArgs);
-
-            return Response.ok(Context.toString(result));
-        } finally {
-            Context.exit();
+    private Response processExecJSRequest(@NotNull final ExecJSRequest request) {
+        if (request.fromCluster) {
+            return jsProcessor.processDirectly(request);
+        } else {
+            request.raw.addHeader(Protocol.HEADER_FROM_CLUSTER);
+            return jsProcessor.processAsCluster(request);
         }
     }
 }

@@ -9,6 +9,10 @@ public final class ReplicasFraction {
         this.from = from;
     }
 
+    public static ReplicasFraction all(final int size) {
+        return new ReplicasFraction(size, size);
+    }
+
     public static ReplicasFraction one() {
         return new ReplicasFraction(1, 1);
     }

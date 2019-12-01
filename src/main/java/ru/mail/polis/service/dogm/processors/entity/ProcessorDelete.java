@@ -1,23 +1,22 @@
 package ru.mail.polis.service.dogm.processors.entity;
 
-import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.dogm.RocksDAO;
-import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.Topology;
 import ru.mail.polis.service.dogm.processors.Bridges;
-import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Request processor for DELETE method.
  */
-public class ProcessorDelete extends SimpleRequestProcessor {
+public class ProcessorDelete extends EntityProcessor<Void> {
     /**
      * Create a new DELETE-processor.
      * @param dao DAO implementation
@@ -28,21 +27,28 @@ public class ProcessorDelete extends SimpleRequestProcessor {
         super(dao, topology, bridges);
     }
 
+    @Nullable
     @Override
-    public Response processAsCluster(@NotNull final String id,
-                                     @NotNull final ReplicasFraction fraction,
-                                     @NotNull final Request request) {
-        final var codeString = Response.ACCEPTED;
-        final var codeInteger = 202;
-        return processRequestOnClusterEmptyResult(
-                id, fraction, request, codeString, codeInteger);
+    protected Void getDataFromResponse(@NotNull final Response response) {
+        return null;
     }
 
     @Override
-    public Response processDirectly(@NotNull final String id,
-                                    @NotNull final Request request) {
+    protected boolean isValid(@Nullable final Void data,
+                              @NotNull final Response response) {
+        return response.getStatus() == 202;
+    }
+
+    @Override
+    protected Response resolveClusterResponse(@NotNull final EntityRequest request,
+                                              @NotNull final List<Void> responses) {
+        return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    @Override
+    public Response processDirectly(@NotNull final EntityRequest request) {
         try {
-            final var key = ByteBuffer.wrap(id.getBytes(UTF_8));
+            final var key = ByteBuffer.wrap(request.id.getBytes(UTF_8));
             dao.removeWithTimestamp(key);
             return new Response(Response.ACCEPTED, Response.EMPTY);
         } catch (IOException e) {

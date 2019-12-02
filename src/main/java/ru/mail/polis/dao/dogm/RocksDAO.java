@@ -29,8 +29,8 @@ public final class RocksDAO implements DAO {
         try {
             final var options = new Options()
                     .setCreateIfMissing(true)
-                    .setMaxBackgroundCompactions(1)
-                    .setMaxBackgroundFlushes(1)
+                    .setMaxBackgroundCompactions(2)
+                    .setMaxBackgroundFlushes(2)
                     .setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
             options.disableAutoCompactions();
             this.db = RocksDB.open(options, data.getAbsolutePath());

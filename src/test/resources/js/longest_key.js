@@ -18,8 +18,8 @@ function onNode(dao) {
 
 function onReducer(dao, results) {
     var max = -1, value;
-    for (var i = 0; i < results.length; i++) {
-        value = results[i];
+    for (var i = 0, length = results.size(); i < length; i++) {
+        value = parseInt(results.get(i));
         if (value > max) {
             max = value;
         }

@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
+import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Scriptable;
 import ru.mail.polis.service.dogm.processors.SharedInfo;
 
@@ -57,13 +58,14 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
                             "Required function onReducer not found".getBytes(UTF_8));
                 }
 
-                final var clusterResults = responses.toArray();
                 final Object[] onReducerArgs = {
                         Context.javaToJS(info.dao, scope),
-                        Context.javaToJS(clusterResults, scope)
+                        Context.javaToJS(responses, scope)
                 };
                 final var result = ((Function) onReducer).call(cx, scope, scope, onReducerArgs);
                 return Response.ok(Context.toString(result));
+            } catch (RhinoException e) {
+                return sendErrorSafe(e);
             } finally {
                 Context.exit();
             }
@@ -93,9 +95,19 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
                 };
                 final var result = ((Function) onNode).call(cx, scope, scope, onNodeArgs);
                 return Response.ok(Context.toString(result));
+            } catch (RhinoException e) {
+                return sendErrorSafe(e);
             } finally {
                 Context.exit();
             }
         }
+    }
+
+    @NotNull
+    private Response sendErrorSafe(@NotNull final Exception e) {
+        final var message = e.getMessage() == null
+                ? e.getClass().getName()
+                : e.getMessage();
+        return new Response(Response.INTERNAL_ERROR, message.getBytes(UTF_8));
     }
 }

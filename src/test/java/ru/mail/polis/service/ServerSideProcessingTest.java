@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * ???
+ * Unit tests for server-side processing in JavaScript on two node {@link Service} cluster.
  *
  * @author Onischuck Mikhail
  */
@@ -63,7 +63,7 @@ class ServerSideProcessingTest extends ClusterTestBase {
         endpoints = Collections.emptySet();
     }
 
-    @RepeatedTest(50)
+    @RepeatedTest(100)
     void jsMaxKeyLength() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             // Send some data in each node of the cluster
@@ -78,17 +78,17 @@ class ServerSideProcessingTest extends ClusterTestBase {
             // Evaluate correct answer
             final var maxKeyLength = Arrays.stream(keys)
                     .map(String::length).max(Integer::compareTo)
-                    .orElse(-1);
+                    .orElse(-1).toString();
 
             // Check first node
             final var result0 = post(0, jsSource);
             assertEquals(200, result0.getStatus());
-            assertEquals(maxKeyLength, Integer.parseInt(result0.getBodyUtf8()));
+            assertEquals(maxKeyLength, result0.getBodyUtf8());
 
             // Check second node
             final var result1 = post(1, jsSource);
             assertEquals(200, result1.getStatus());
-            assertEquals(maxKeyLength, Integer.parseInt(result1.getBodyUtf8()));
+            assertEquals(maxKeyLength, result1.getBodyUtf8());
         });
     }
 

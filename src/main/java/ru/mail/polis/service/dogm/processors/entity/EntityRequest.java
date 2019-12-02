@@ -6,16 +6,17 @@ import ru.mail.polis.service.dogm.ReplicasFraction;
 import ru.mail.polis.service.dogm.processors.ParsedRequest;
 
 /**
- *
+ * Parsed request on /v0/entity URL.
  */
 public class EntityRequest extends ParsedRequest {
     protected final String id;
 
     /**
-     * @param id
-     * @param fromCluster
-     * @param rawRequest
-     * @param fraction
+     * Creates new parsed request out of useful info.
+     * @param id          identifier
+     * @param fromCluster is request coming from cluster coordinator?
+     * @param rawRequest  original one-nio request
+     * @param fraction    number of replicas, see {@link ReplicasFraction}
      */
     public EntityRequest(@NotNull final String id,
                          final boolean fromCluster,

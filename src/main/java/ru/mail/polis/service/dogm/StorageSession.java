@@ -4,6 +4,7 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Response;
 import one.nio.net.Socket;
+import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.dogm.ByteBufferUtils;
 import ru.mail.polis.dao.dogm.DataWithTimestamp;
@@ -22,7 +23,8 @@ public class StorageSession extends HttpSession {
 
     private Iterator<Record> records;
 
-    StorageSession(final Socket socket, final HttpServer server) {
+    StorageSession(@NotNull final Socket socket,
+                   @NotNull final HttpServer server) {
         super(socket, server);
     }
 

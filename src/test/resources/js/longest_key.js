@@ -1,4 +1,4 @@
-function onNode() {
+function onNode(dao) {
     var iter = dao.iteratorFromBeginning();
     var maxLength = -1;
     var record, key, keyLen;
@@ -16,7 +16,7 @@ function onNode() {
     return maxLength;
 }
 
-function onReducer(results) {
+function onReducer(dao, results) {
     var max = -1, value;
     for (var i = 0; i < results.length; i++) {
         value = results[i];

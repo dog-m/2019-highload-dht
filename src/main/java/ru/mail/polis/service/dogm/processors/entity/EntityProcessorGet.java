@@ -5,9 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.dogm.ByteBufferUtils;
 import ru.mail.polis.dao.dogm.DataWithTimestamp;
-import ru.mail.polis.dao.dogm.RocksDAO;
-import ru.mail.polis.service.dogm.Topology;
-import ru.mail.polis.service.dogm.processors.Bridges;
+import ru.mail.polis.service.dogm.processors.SharedInfo;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -18,21 +16,20 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * Request processor for GET method.
  */
-public class ProcessorGet extends EntityProcessor<DataWithTimestamp> {
+public class EntityProcessorGet extends EntityProcessor<DataWithTimestamp> {
     /**
      * Create a new GET-processor.
-     * @param dao DAO implementation
-     * @param topology cluster topology
-     * @param bridges connection to other nodes in cluster
+     * @param sharedInfo Common information between processors
      */
-    public ProcessorGet(final RocksDAO dao, final Topology topology, final Bridges bridges) {
-        super(dao, topology, bridges);
+    public EntityProcessorGet(@NotNull final SharedInfo sharedInfo) {
+        super(sharedInfo);
     }
 
     @Override
+    @NotNull
     public Response processDirectly(@NotNull final EntityRequest request) {
         final var key = ByteBuffer.wrap(request.id.getBytes(UTF_8));
-        final var val = dao.getWithTimestamp(key);
+        final var val = info.dao.getWithTimestamp(key);
 
         if (val.isPresent()) {
             return new Response(Response.OK, val.toBytes());
@@ -44,10 +41,11 @@ public class ProcessorGet extends EntityProcessor<DataWithTimestamp> {
     }
 
     @Override
+    @NotNull
     protected Response resolveClusterResponse(@NotNull final EntityRequest request,
                                               @NotNull final List<DataWithTimestamp> responses) {
         var max = DataWithTimestamp.fromAbsent();
-        for (final var candidate : responses) {
+        for (@Nullable final var candidate : responses) {
             // ignore NULLs
             if (candidate != null) {
                 if (candidate.isRemoved()) {

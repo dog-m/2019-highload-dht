@@ -15,13 +15,15 @@ import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.dogm.processors.Bridges;
 import ru.mail.polis.service.dogm.processors.Protocol;
+import ru.mail.polis.service.dogm.processors.SharedInfo;
 import ru.mail.polis.service.dogm.processors.entity.EntityProcessor;
 import ru.mail.polis.service.dogm.processors.entity.EntityRequest;
-import ru.mail.polis.service.dogm.processors.entity.ProcessorDelete;
-import ru.mail.polis.service.dogm.processors.entity.ProcessorGet;
-import ru.mail.polis.service.dogm.processors.entity.ProcessorPut;
+import ru.mail.polis.service.dogm.processors.entity.EntityProcessorDelete;
+import ru.mail.polis.service.dogm.processors.entity.EntityProcessorGet;
+import ru.mail.polis.service.dogm.processors.entity.EntityProcessorPut;
+import ru.mail.polis.service.dogm.processors.execjs.ExecJSProcessor;
 import ru.mail.polis.service.dogm.processors.execjs.ExecJSRequest;
-import ru.mail.polis.service.dogm.processors.execjs.ProcessorPost;
+import ru.mail.polis.service.dogm.processors.execjs.ExecJSProcessorPost;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,12 +40,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Simple REST/HTTP service.
  */
 public class ServiceImpl extends HttpServer implements Service {
-    private final RocksDAO dao;
     private final Executor myWorkers;
     private final Logger log = Logger.getLogger(getClass().getName());
-    private final int clusterSize;
-    private final Map<Integer, EntityProcessor<?>> processors;
-    private final ProcessorPost jsProcessor;
+    private final SharedInfo sharedInfo;
+    private final Map<Integer, EntityProcessor<?>> entityProcs;
+    private final ExecJSProcessor jsProc;
 
     /**
      * Create a new server (node in cluster).
@@ -57,18 +58,16 @@ public class ServiceImpl extends HttpServer implements Service {
                        @NotNull final Executor workers,
                        @NotNull final Set<String> topologyDescription) throws IOException {
         super(getConfig(port));
-        this.dao = (RocksDAO) dao;
         this.myWorkers = workers;
-        this.clusterSize = topologyDescription.size();
         final Topology topology = new BasicTopology(topologyDescription, port);
-        final Bridges bridges = new Bridges(topology);
+        this.sharedInfo = new SharedInfo((RocksDAO) dao, topology, new Bridges(topology));
 
-        this.processors = new HashMap<>();
-        this.processors.put(Request.METHOD_GET, new ProcessorGet(this.dao, topology, bridges));
-        this.processors.put(Request.METHOD_PUT, new ProcessorPut(this.dao, topology, bridges));
-        this.processors.put(Request.METHOD_DELETE, new ProcessorDelete(this.dao, topology, bridges));
+        this.entityProcs = new HashMap<>();
+        this.entityProcs.put(Request.METHOD_GET, new EntityProcessorGet(sharedInfo));
+        this.entityProcs.put(Request.METHOD_PUT, new EntityProcessorPut(sharedInfo));
+        this.entityProcs.put(Request.METHOD_DELETE, new EntityProcessorDelete(sharedInfo));
 
-        this.jsProcessor = new ProcessorPost(this.dao, topology, bridges);
+        this.jsProc = new ExecJSProcessorPost(sharedInfo);
     }
 
     /**
@@ -87,7 +86,8 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public void handleDefault(final Request request, final HttpSession session) throws IOException {
+    public void handleDefault(@NotNull final Request request,
+                              @NotNull final HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
@@ -115,8 +115,10 @@ public class ServiceImpl extends HttpServer implements Service {
         final boolean fromCluster = request.getHeader(Protocol.HEADER_FROM_CLUSTER) != null;
         final var fraction = fromCluster
                                 ? ReplicasFraction.one()
-                                : ReplicasFraction.parse(replicas, clusterSize);
-        if (fraction.ack < 1 || fraction.ack > fraction.from || fraction.from > clusterSize) {
+                                : ReplicasFraction.parse(replicas, sharedInfo.topology.size());
+        if (fraction.ack < 1
+                || fraction.ack > fraction.from
+                || fraction.from > sharedInfo.topology.size()) {
             session.sendError(Response.BAD_REQUEST, Protocol.FAIL_REPLICAS);
             return;
         }
@@ -139,14 +141,16 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response processEntityRequest(@NotNull final EntityRequest request) {
         final var method = request.raw.getMethod();
         if (request.fromCluster) {
-            return processors.get(method).processDirectly(request);
+            return entityProcs.get(method).processDirectly(request);
         } else {
             request.raw.addHeader(Protocol.HEADER_FROM_CLUSTER);
-            return processors.get(method).processAsCluster(request);
+            return entityProcs.get(method).processAsCluster(request);
         }
     }
 
-    private void sendError(final HttpSession session, final String code, final String data) {
+    private void sendError(@NotNull final HttpSession session,
+                           @NotNull final String code,
+                           @NotNull final String data) {
         try {
             session.sendError(code, data);
         } catch (IOException e) {
@@ -178,7 +182,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 final var to = end == null || end.isEmpty()
                                 ? null
                                 : ByteBuffer.wrap(end.getBytes(UTF_8));
-                final var records = dao.range(from, to);
+                final var records = sharedInfo.dao.range(from, to);
 
                 final var storageSession = (StorageSession) session;
                 storageSession.stream(records);
@@ -193,7 +197,8 @@ public class ServiceImpl extends HttpServer implements Service {
         return new StorageSession(socket, this);
     }
 
-    private void executeAsync(@NotNull final HttpSession session, @NotNull final Action action) {
+    private void executeAsync(@NotNull final HttpSession session,
+                              @NotNull final Action action) {
         myWorkers.execute(() -> {
             try {
                 session.sendResponse(action.act());
@@ -208,6 +213,9 @@ public class ServiceImpl extends HttpServer implements Service {
         Response act() throws IOException;
     }
 
+    /**
+     * Main handler for POST requests to addresses like http://localhost:8080/v0/execjs.
+     */
     @Path("/v0/execjs")
     public void execjs(@NotNull final Request request,
                        @NotNull final HttpSession session) {
@@ -216,9 +224,15 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
+        final var source = request.getBody();
+        if (source == null || source.length == 0) {
+            sendError(session, Response.BAD_REQUEST, "No any JavaScript code");
+            return;
+        }
+
         final var js = new String(request.getBody(), UTF_8);
         final boolean fromCluster = request.getHeader(Protocol.HEADER_FROM_CLUSTER) != null;
-        final var fraction = ReplicasFraction.all(clusterSize);
+        final var fraction = ReplicasFraction.all(sharedInfo.topology.size());
 
         final var compoundRequest = new ExecJSRequest(js, fromCluster, request, fraction);
         executeAsync(session, () -> processExecJSRequest(compoundRequest));
@@ -226,10 +240,10 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private Response processExecJSRequest(@NotNull final ExecJSRequest request) {
         if (request.fromCluster) {
-            return jsProcessor.processDirectly(request);
+            return jsProc.processDirectly(request);
         } else {
             request.raw.addHeader(Protocol.HEADER_FROM_CLUSTER);
-            return jsProcessor.processAsCluster(request);
+            return jsProc.processAsCluster(request);
         }
     }
 }

@@ -4,7 +4,6 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import ru.mail.polis.dao.dogm.RocksDAO;
 import ru.mail.polis.service.dogm.Topology;
 
 import java.io.IOException;
@@ -21,17 +20,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public abstract class SimpleRequestProcessor<DataType, RequestType extends ParsedRequest> {
     protected final Logger log = Logger.getLogger(getClass().getName());
-    protected final RocksDAO dao;
-    protected final Topology topology;
-    private final Bridges bridges;
+    protected final SharedInfo info;
     protected static final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
 
-    public SimpleRequestProcessor(@NotNull final RocksDAO dao,
-                                  @NotNull final Topology topology,
-                                  @NotNull final Bridges bridges) {
-        this.dao = dao;
-        this.topology = topology;
-        this.bridges = bridges;
+    public SimpleRequestProcessor(@NotNull final SharedInfo sharedInfo) {
+        this.info = sharedInfo;
     }
 
     @Nullable
@@ -40,28 +33,32 @@ public abstract class SimpleRequestProcessor<DataType, RequestType extends Parse
     protected abstract boolean isValid(@Nullable final DataType data,
                                        @NotNull final Response response);
 
+    @NotNull
     protected abstract Response resolveClusterResponse(@NotNull final RequestType request,
                                                        @NotNull final List<DataType> responses);
 
+    @NotNull
     public abstract Response processDirectly(@NotNull final RequestType request);
 
     @NotNull
     protected abstract List<String> getNodesByRequest(@NotNull final Topology topology,
                                                       @NotNull final RequestType request);
 
+    @NotNull
     public Response processAsCluster(@NotNull final RequestType request) {
         final var successfulResponses = new AtomicInteger(0);
         final var responses = new ArrayList<DataType>(request.fraction.from);
-        final var maxNumberOfExceptions = new AtomicInteger(request.fraction.from - request.fraction.ack);
+        final var maxNumberOfExceptions = new AtomicInteger(
+                request.fraction.from - request.fraction.ack);
         final var result = new CompletableFuture<Integer>();
 
-        final var nodes = getNodesByRequest(topology, request);
+        final var nodes = getNodesByRequest(info.topology, request);
         for (int i = 0; i < nodes.size(); i++) {
             responses.add(null); // will be replaced in future if succeed
 
             final var node = nodes.get(i);
             final var index = i;
-            (topology.isMe(node)
+            (info.topology.isMe(node)
                     ? CompletableFuture.supplyAsync(() -> processDirectly(request))
                     : processRequestRemotely(node, request.raw))
                 .thenAccept(
@@ -103,13 +100,15 @@ public abstract class SimpleRequestProcessor<DataType, RequestType extends Parse
         return null;
     }
 
+    @NotNull
     protected static Response getWrongProcessorResponse() {
         return new Response(Response.INTERNAL_ERROR, Protocol.FAIL_WRONG_PROCESSOR.getBytes(UTF_8));
     }
 
+    @NotNull
     protected CompletableFuture<Response> processRequestRemotely(@NotNull final String node,
                                                                  @NotNull final Request request) {
-        return bridges.sendRequestTo(request, node).thenApply(
+        return info.bridges.sendRequestTo(request, node).thenApply(
                 response -> new Response(String.valueOf(response.statusCode()), response.body())
         );
     }

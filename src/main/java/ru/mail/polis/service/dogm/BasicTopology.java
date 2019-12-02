@@ -1,5 +1,7 @@
 package ru.mail.polis.service.dogm;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -8,9 +10,9 @@ import java.util.Set;
  * Basic topology class.
  */
 public class BasicTopology implements Topology {
-
     private final List<String> nodes;
     private final String me;
+    private final int clusterSize;
 
     /**
      * Basic topology class.
@@ -18,7 +20,8 @@ public class BasicTopology implements Topology {
      * @param topology - set of nodes in cluster
      * @param myPort   - port of current node
      */
-    BasicTopology(final Set<String> topology, final int myPort) {
+    BasicTopology(@NotNull final Set<String> topology, final int myPort) {
+        this.clusterSize = topology.size();
         this.nodes = new ArrayList<>(topology);
         String meNode = null;
         final String myPortSignature = ":" + myPort;
@@ -42,16 +45,18 @@ public class BasicTopology implements Topology {
     }
 
     @Override
+    @NotNull
     public List<String> all() {
         return nodes;
     }
 
     @Override
-    public Boolean isMe(final String node) {
+    public boolean isMe(final String node) {
         return me.equals(node);
     }
 
     @Override
+    @NotNull
     public List<String> nodesFor(final String id, final int count) {
         final List<String> result = new ArrayList<>(count);
 
@@ -61,5 +66,10 @@ public class BasicTopology implements Topology {
         }
 
         return result;
+    }
+
+    @Override
+    public int size() {
+        return clusterSize;
     }
 }

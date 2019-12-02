@@ -47,7 +47,7 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
         synchronized (JS_CONTEXT_MONITOR) {
             final var cx = Context.enter();
             try {
-                Scriptable scope = cx.initStandardObjects();
+                final Scriptable scope = cx.initStandardObjects();
                 // Execute script to build functions and init global objects
                 cx.evaluateString(scope, request.js, "<client>", 1, null);
 
@@ -63,9 +63,7 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
                         Context.javaToJS(clusterResults, scope)
                 };
                 final var result = ((Function) onReducer).call(cx, scope, scope, onReducerArgs);
-                final var resultString = Context.toString(result);
-                // for debug purposes use log.info("JS onReducer: " + resultString);
-                return Response.ok(resultString);
+                return Response.ok(Context.toString(result));
             } finally {
                 Context.exit();
             }
@@ -80,7 +78,7 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
         synchronized (JS_CONTEXT_MONITOR) {
             final var cx = Context.enter();
             try {
-                Scriptable scope = cx.initStandardObjects();
+                final Scriptable scope = cx.initStandardObjects();
                 // Execute script to build functions and init global objects
                 cx.evaluateString(scope, request.js, "<client>", 1, null);
 
@@ -94,9 +92,7 @@ public class ExecJSProcessorPost extends ExecJSProcessor {
                         Context.javaToJS(info.dao, scope)
                 };
                 final var result = ((Function) onNode).call(cx, scope, scope, onNodeArgs);
-                final var resultString = Context.toString(result);
-                // for debug purposes use log.info("JS onNode: " + resultString);
-                return Response.ok(resultString);
+                return Response.ok(Context.toString(result));
             } finally {
                 Context.exit();
             }

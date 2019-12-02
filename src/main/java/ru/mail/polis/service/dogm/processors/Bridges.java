@@ -17,8 +17,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public class Bridges {
     private final Map<String, HttpClient> clients = new HashMap<>();
-    public static final Duration TIMEOUT_REQUEST = Duration.ofSeconds(7);
-    public static final Duration TIMEOUT_CONNECT = Duration.ofSeconds(10);
+    public static final Duration TIMEOUT_REQUEST = Duration.ofSeconds(5);
+    public static final Duration TIMEOUT_CONNECT = Duration.ofSeconds(7);
 
     /**
      * Constructor for redirector dictionary (Bridges).

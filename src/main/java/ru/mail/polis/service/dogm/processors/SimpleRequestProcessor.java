@@ -18,36 +18,40 @@ import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public abstract class SimpleRequestProcessor<DataType, RequestType extends ParsedRequest> {
+public abstract class SimpleRequestProcessor<DataT, RequestT extends ParsedRequest> {
     protected final Logger log = Logger.getLogger(getClass().getName());
     protected final SharedInfo info;
-    protected static final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 2;
+    protected static final long TIMEOUT_CLUSTER = Bridges.TIMEOUT_CONNECT.toMillis() * 3 / 2;
 
     public SimpleRequestProcessor(@NotNull final SharedInfo sharedInfo) {
         this.info = sharedInfo;
     }
 
     @Nullable
-    protected abstract DataType getDataFromResponse(@NotNull final Response response);
+    protected abstract DataT getDataFromResponse(@NotNull final Response response);
 
-    protected abstract boolean isValid(@Nullable final DataType data,
+    protected abstract boolean isValid(@Nullable final DataT data,
                                        @NotNull final Response response);
 
     @NotNull
-    protected abstract Response resolveClusterResponse(@NotNull final RequestType request,
-                                                       @NotNull final List<DataType> responses);
+    protected abstract Response resolveClusterResponse(@NotNull final RequestT request,
+                                                       @NotNull final List<DataT> responses);
 
     @NotNull
-    public abstract Response processDirectly(@NotNull final RequestType request);
+    public abstract Response processDirectly(@NotNull final RequestT request);
 
     @NotNull
     protected abstract List<String> getNodesByRequest(@NotNull final Topology topology,
-                                                      @NotNull final RequestType request);
+                                                      @NotNull final RequestT request);
 
+    /**
+     * Coordinate processing request in a cluster.
+     * @param request a single request
+     */
     @NotNull
-    public Response processAsCluster(@NotNull final RequestType request) {
+    public Response processAsCluster(@NotNull final RequestT request) {
         final var successfulResponses = new AtomicInteger(0);
-        final var responses = new ArrayList<DataType>(request.fraction.from);
+        final var responses = new ArrayList<DataT>(request.fraction.from);
         final var maxNumberOfExceptions = new AtomicInteger(
                 request.fraction.from - request.fraction.ack);
         final var result = new CompletableFuture<Integer>();

@@ -47,6 +47,9 @@ public final class RocksDAO implements DAO {
         return new RocksRecordIterator(iterator);
     }
 
+    /**
+     * Entry point (iterator) to all stored data from the beginning.
+     */
     @NotNull
     public Iterator<Record> iteratorFromBeginning() {
         final var iterator = db.newIterator();

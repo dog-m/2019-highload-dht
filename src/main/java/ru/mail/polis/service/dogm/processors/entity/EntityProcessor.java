@@ -7,7 +7,7 @@ import ru.mail.polis.service.dogm.processors.SimpleRequestProcessor;
 
 import java.util.List;
 
-public abstract class EntityProcessor<DataType> extends SimpleRequestProcessor<DataType, EntityRequest> {
+public abstract class EntityProcessor<DataT> extends SimpleRequestProcessor<DataT, EntityRequest> {
     public EntityProcessor(@NotNull final SharedInfo sharedInfo) {
         super(sharedInfo);
     }
